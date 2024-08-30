@@ -1,0 +1,3411 @@
+---
+title: "SVs Analysis, HPG intestine project"
+author: "Laura Sisk-Hackworth"
+date: "2023-06-13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(corrplot)
+library(ggpubr)
+library(psych)
+library(vegan)
+library(nlme)
+library(metap)
+library(caTools)
+library(randomForest)
+library(ROCR)
+library(car)
+library(RColorBrewer)
+library(ape)
+library(coda4microbiome)
+library(cowplot)
+library(svglite)
+library(rstatix)
+library(reshape2)
+```
+Colors:
+Order Female Mut, Female WT, Male Mut, Male WT
+current = "#332288","#E066A6", "#E6A316","#256769"
+sample_type :"#E69F00","#009E73"
+Cohort Current = "#CC79A7","#0072B2"
+
+# Colors
+```{r}
+group_color_list <- c(Female_Mutant = "#332288", Male_Mutant = "#E6A316", 
+                      Female_Wild_Type = "#E066A6", Male_Wild_Type = "#256769")
+sample_type_color_list <- c(Lumen = "#E69F00", Mucosa = "#009E73")
+cohort_color_list <- c(A = "#CC79A7", B = "#0072B2")
+week_color_list <- c(`3` = "#feb24c", `6` = "#fc4e2a", `10` = "#800026")
+section_color_list <- c(Cecum_Lumen = "#A6CEE3", Cecum_Mucosa=  "#1F78B4", Duodenum_Lumen =  "#B2DF8A", Duodenum_Mucosa =  "#33A02C", feces =  "#FB9A99" , Ileum_Lumen = "#E31A1C", Ileum_Mucosa =  "#FDBF6F", Cecum = "#A6CEE3", Duodenum = "#B2DF8A", Ileum = "#E31A1C", Feces = "#FB9A99", Unknown = "#808080")
+```
+
+
+# 0 Import data 
+## 0.1 Metadata
+```{r}
+clr <- function(x) sweep(log(x), 1, rowMeans(log(x)), "-")
+```
+
+```{r}
+
+#feces
+feces_map <- read.csv("data/feces_metadata.csv", header = TRUE, row.names = 1)
+head(feces_map)
+
+```
+
+
+
+## 0.3 SV, Genus, and Family count tables
+```{r}
+#feces
+feces_SVs <- read.csv("data/ASV_table_mito_removedtable.zerofiltered.csv", header = TRUE, row.names = 1)
+
+head(feces_SVs)
+
+feces_genus <- read.csv("data/feces_genus_PT_table.from_biom_simple_name.csv", header = TRUE, row.names = 1)
+
+
+feces_family <- read.csv("data/feces_family_PT_table.from_biom_simple_name.csv", header = TRUE, row.names = 1)
+
+dim(feces_SVs)
+dim(feces_genus)
+dim(feces_family)
+
+```
+
+
+
+For all family data (all sample types, environments), make color palette for barplots to use in all the environments 
+Get unique family names from all environments
+
+Colors
+```{r}
+family_color_list <- c(Acidaminococcaceae = "#B785CD", 
+                       Acutalibacteraceae = "#DF1B9A", 
+                       Acholeplasmataceae = "#A6CEE3",Actinomycetaceae = "#1F78B4",
+                       Aerococcaceae = "#B2DF8A", Alcaligenaceae = "#33A02C", 
+                       Anaerotignaceae = "#B18090",
+                       Anaerovoracaceae = "#A6CEE3", 
+                       Anaeroplasmataceae = "#F99DEF",
+                       Anaerotignaceae = "#9E5748",
+                       Atopobiaceae = "#80B1AD", 
+                       Bacillaceae = "#B15928", 
+                       Bacteroidaceae =  "#FF7F00",  
+                       Bacteroidales_family = "#1F78B4",
+                       Barnesiellaceae = "#F3D10F",
+                       Beijerinckiaceae = "#1F78B4", Bifidobacteriaceae = "#A6CEE3",
+                       Borkfalkiaceae = "#615407",
+                       Burkholderiaceae = "#B2DF8A", Butyricicoccaceae = "#FB9A99",
+                       Caulobacteraceae = "#1F78B4", 
+                       `Clostridia_UCG-014` = "#A6CEE3",
+                       Clostridia_vadinBB60_group = "#1F78B4", 
+                       Clostridiaceae = "#FDBF6F", 
+                       Comamonadaceae = "#A6CEE3", 
+                       Coprobacillaceae = "#CFD415",
+                       Corynebacteriaceae = "#1F78B4",
+                       Desulfovibrionaceae = "#80B197",
+                       Deferribacteraceae = "#B2DF8A", Eggerthellaceae = "#E31A1C",
+                       Enterobacteriaceae = "#B2DF8A", Enterococcaceae = "#33A02C",
+                       Erysipelatoclostridiaceae = "#FB9A99",  
+                       Erysipelotrichaceae = "#A6CEE3", Eubacteriaceae = "#A9D90F",
+                       Fenollaria = "#647A51",
+                       Halomonadaceae = "#1F78B4",JAAVYR01 = "#97B538",
+                       Lachnospiraceae = "#A6CEE3", Lactobacillaceae = "#1F78B4",
+                       Listeriaceae = "#B2DF8A", 
+                       Maliibacteriaceae = "#E9EE06",
+                       Massilistercora = "#0AEE06", 
+                       Micrococcaceae = "#3DCDF9", 
+                       Marinifilaceae = "#33A02C" ,
+                       Monoglobaceae = "#6A3D9A" , Moraxellaceae = "#33A02C", 
+                       Muribaculaceae = "#33A02C", Mucispirillaceae = "#C6DA86",
+                       Nanosyncoccaceae = "#839058", Odoribacteraceae = "#425C2A",
+                       Obscuribacteraceae = "#A6CEE3",Oscillospiraceae ="#FFFF99" ,
+                       Paenibacillaceae = "#3DCC8A",
+                       Peptococcaceae = "#1F78B4", Pumilibacteraceae = "#432A5C",
+                       Prevotellaceae = "#6A3D9A" ,
+                       Porphyromonadaceae = "#5F3263",
+                       Pumilibacteraceae = "#B64E98",
+                       Pseudomonadaceae = "#B2DF8A", RF39 = "#33A02C", 
+                       Rhizobiaceae = "#FB9A99", Rikenellaceae ="#B2DF8A",
+                       Ruminococcaceae = "#CAB2D6" , 
+                       Saccharimonadaceae = "#6A3D9A" ,  
+                       Selenomonadaceae = "#32634C",
+                       Staphylococcaceae = "#A6CEE3", Streptococcaceae = "#1F78B4",
+                       Tannerellaceae = "#633255",Thermicanaceae = "#B2DF8A", 
+                       UBA1381 = "#159C66",
+                       UBA5755 = "#3EE5A3",
+                       Unclassified_BinA= "#3EE4E5",
+                       Unclassified_BinB = "#0AB3B4",
+                       Unclassified_BinC = "#0A83B4",
+                       Unclassified_BinD = "#BAE9FD",
+                       Unclassified_BinE = "#8775E9",
+                       Unclassified_BinF = "#2A14A5",
+                       Unclassified_BinG = "#7A68DF",
+                       Unclassified_BinH = "#CB1BDF",
+                       Xanthobacteraceae = "#A6CEE3",Xanthomonadaceae  = "#1F78B4",
+                       Weeksellaceae = "#EED2E6")
+```
+Light blue = "#A6CEE3"
+Dark blue = "#1F78B4"
+Light green = "#B2DF8A"
+Dark green = "#33A02C"
+Pink = "#FB9A99" 
+Red = "#E31A1C" 
+Light Orange = "#FDBF6F"
+Orange = "#FF7F00" 
+lavender = "#CAB2D6" 
+purple = "#6A3D9A" 
+yellow = "#FFFF99" 
+brown = "#B15928"
+
+
+
+## 0.5 Import Metabolites
+```{r}
+feces_lipids <- read.csv("data/lipidomics_feature_table_annotations.csv", header = TRUE, row.names = 1)
+feces_amines <- read.csv("data/amines_feature_table.csv", header = TRUE, row.names = 1)
+
+feces_lipids_class <- read.csv("data/lipidomics_groups_table_annotations.csv", header = TRUE, row.names = 1)
+
+feces_amines_class <- read.csv("data/amines_groups_table.csv", header = TRUE, row.names = 1)
+
+
+dim(feces_lipids)
+dim(feces_amines)
+
+```
+Summarize metabolites by class
+
+```{r}
+feces_lipids_class <- feces_lipids_class %>% group_by(Class) %>% 
+  summarise(across(everything(), sum),
+            .groups = 'drop')  %>%
+  as.data.frame()
+dim(feces_lipids_class)
+
+row.names(feces_lipids_class) <- feces_lipids_class$Class
+feces_lipids_class_df <- feces_lipids_class[,2:75]
+
+feces_amines_class <- feces_amines_class %>% group_by(Class) %>% 
+  summarise(across(everything(), sum),
+            .groups = 'drop')  %>%
+  as.data.frame()
+dim(feces_amines_class)
+
+row.names(feces_amines_class) <- feces_amines_class$Class
+feces_amines_class_df <- feces_amines_class[,2:75]
+
+
+feces_primary_class <- feces_primary_class %>% group_by(Class) %>% 
+  summarise(across(everything(), sum),
+            .groups = 'drop')  %>%
+  as.data.frame()
+dim(feces_primary_class)
+
+row.names(feces_primary_class) <- feces_primary_class$Class
+feces_primary_class_df <- feces_primary_class[,2:75]
+
+```
+
+### Zero replace and clr
+```{r}
+#lipids
+feces_lipids_zerorep <- feces_lipids
+feces_lipids_zerorep[feces_lipids_zerorep == 0] <- 0.001
+
+feces_lipids_tx<- data.frame(t(clr(t(feces_lipids_zerorep))))
+
+#amines
+feces_amines_zerorep <- feces_amines
+feces_amines_zerorep[feces_amines_zerorep == 0] <- 0.001
+
+feces_amines_tx<- data.frame(t(clr(t(feces_amines_zerorep))))
+
+#primary
+feces_primary_zerorep <- feces_primary
+feces_primary_zerorep[feces_primary_zerorep == 0] <- 0.001
+
+feces_primary_tx<- data.frame(t(clr(t(feces_primary_zerorep))))
+
+```
+
+classes
+```{r}
+
+feces_lipids_class_zerorep <- feces_lipids_class_df
+feces_lipids_class_zerorep[feces_lipids_class_zerorep == 0] <- 0.001
+
+feces_lipids_class_tx<- data.frame(t(clr(t(feces_lipids_class_zerorep))))
+
+feces_amines_class_zerorep <- feces_amines_class_df
+feces_amines_class_zerorep[feces_amines_class_zerorep == 0] <- 0.001
+
+feces_amines_class_tx<- data.frame(t(clr(t(feces_amines_class_zerorep))))
+
+
+feces_primary_class_zerorep <- feces_primary_class_df
+feces_primary_class_zerorep[feces_primary_class_zerorep == 0] <- 0.001
+
+feces_primary_class_tx<- data.frame(t(clr(t(feces_primary_class_zerorep))))
+
+```
+
+
+## 0.6 Import Genes
+```{r}
+salmon_eggnog_read_counts <- read.csv("data/merged_reads_contig_salmon_numreads_eggnog.txt", header = TRUE, row.names = 1, sep = "\t")
+dim(salmon_eggnog_read_counts)
+
+eggnog_annotations <- read.csv("data/megahit_coassembly_eggnog.emapper.annotations", header = TRUE, row.names = 1, sep = "\t")
+dim(eggnog_annotations)
+
+```
+
+Combine Gene Counts by Orthologs
+
+
+```{r}
+#Merge based on CDS name
+salmon_eggnog_read_counts_and_metadata <- merge(salmon_eggnog_read_counts, eggnog_annotations, by = 'row.names', all = TRUE) 
+
+row.names(salmon_eggnog_read_counts_and_metadata) <- salmon_eggnog_read_counts_and_metadata$Row.names
+
+gene_read_counts_and_metadata <-salmon_eggnog_read_counts_and_metadata[,2:95 ]
+dim(gene_read_counts_and_metadata)
+head(gene_read_counts_and_metadata)
+
+```
+
+
+
+Sum gene counts by orthologs 
+```{r}
+gene_read_counts_and_metadata[is.na(gene_read_counts_and_metadata)] <- 0
+
+head(gene_read_counts_and_metadata)
+```
+
+
+```{r}
+# seed_ortholog
+ortholog_read_counts <- gene_read_counts_and_metadata[,1:75] %>% group_by(seed_ortholog) %>% 
+  summarise(across(everything(), sum)) %>%
+  as.data.frame()
+
+dim(salmon_eggnog_read_counts)
+dim(ortholog_read_counts)
+```
+
+
+
+```{r}
+head(ortholog_read_counts)
+row.names(ortholog_read_counts) <- ortholog_read_counts$seed_ortholog
+head(ortholog_read_counts[,2:75])
+```
+
+
+Write this ortholog table to be outputted for zero-filtering, and write genes to a csv:
+Remove unknowns before zero-filtering
+```{r}
+write.csv(ortholog_read_counts[,2:75], "data/orthologs_before_zerofilter.csv")
+write.csv(salmon_eggnog_read_counts, "data/genes_before_zerofilter.csv")
+```
+
+
+Import the zero-filtered (from curvcut) gene and ortholog tables 
+```{r}
+genes <- read.csv("data/genes_zerofiltered.csv", header = TRUE)
+dim(genes)
+
+orthologs <- read.csv("data/orthologs_zerofiltered.csv", header = TRUE) 
+dim(orthologs)
+```
+
+```{r}
+head(genes)
+head(orthologs)
+
+
+```
+
+
+```{r}
+row.names(genes) <- genes$`Unnamed..0`
+genes_untx <- genes[,3:76]
+
+row.names(orthologs) <- orthologs$`Unnamed..0`
+orthologs_untx <- orthologs[,3:76]
+
+rownames(orthologs_untx)[rownames(orthologs_untx) == "0"] <- "Unknown"
+
+dim(genes_untx)
+dim(orthologs_untx)
+```
+
+
+clr
+```{r}
+#Gene table
+genes_zerorep <- genes_untx
+genes_zerorep[genes_zerorep == 0] <- 0.001
+genes_tx<- data.frame(t(clr(t(genes_zerorep))))
+dim(genes_tx)
+
+#ortholog table
+orthologs_zerorep <- orthologs_untx
+orthologs_zerorep[orthologs_zerorep == 0] <- 0.001
+
+orthologs_tx<- data.frame(t(clr(t(orthologs_zerorep))))
+dim(orthologs_tx)
+```
+
+```{r}
+head(genes_tx)
+head(orthologs_tx)
+```
+
+
+## 0.7 Import Metagenomics Taxa Tables
+Binned Taxa:
+```{r}
+feces_meta_binned_species <- read.csv("data/binned_species_read_counts_GTDBTk_BLAST.csv", header = TRUE, row.names = 1)
+dim(feces_meta_binned_species)
+
+```
+
+clr
+```{r}
+meta_binned_species_zerorep <- feces_meta_binned_species
+meta_binned_species_zerorep[meta_binned_species_zerorep == 0] <- 0.001
+meta_binned_species_tx<- data.frame(t(clr(t(meta_binned_species_zerorep))))
+dim(meta_binned_species_tx)
+
+meta_binned_genus_zerorep <- feces_meta_binned_genus
+meta_binned_genus_zerorep[meta_binned_genus_zerorep == 0] <- 0.001
+meta_binned_genus_tx<- data.frame(t(clr(t(meta_binned_genus_zerorep))))
+dim(meta_binned_genus_tx)
+
+meta_binned_family_zerorep <- feces_meta_binned_family
+meta_binned_family_zerorep[meta_binned_family_zerorep == 0] <- 0.001
+meta_binned_family_tx<- data.frame(t(clr(t(meta_binned_family_zerorep))))
+dim(meta_binned_family_tx)
+```
+Write metagenomics clr data to csv
+```{r}
+#write.csv(meta_binned_species_tx,  "data/binned_species_read_counts_GTDBTk_BLAST_clr.csv")
+```
+
+
+
+## 0.8  Lists for sample subsetting later
+```{r}
+#Feces
+#for subsetting rows (just samples)
+feces_female_list <-feces_map[(feces_map$Sex=="Female"),]$Mouse_Label
+feces_male_list <-feces_map[(feces_map$Sex=="Male"),]$Mouse_Label
+
+feces_wild_type_list <-feces_map[(feces_map$Genotype=="Wild_Type"),]$Mouse_Label
+feces_mutant_list <-feces_map[(feces_map$Genotype=="Mutant"),]$Mouse_Label
+
+feces_female_wild_type_list <- feces_map[(feces_map$Group=="Female_Wild_Type"),]$Mouse_Label
+feces_male_wild_type_list <- feces_map[(feces_map$Group=="Male_Wild_Type"),]$Mouse_Label
+feces_female_mutant_list <- feces_map[(feces_map$Group=="Female_Mutant"),]$Mouse_Label
+feces_male_mutant_list <- feces_map[(feces_map$Group=="Male_Mutant"),]$Mouse_Label
+
+feces_week3_list <- feces_map[(feces_map$Week=="3"),]$Mouse_Label
+feces_week6_list <- feces_map[(feces_map$Week=="6"),]$Mouse_Label
+feces_week10_list <- feces_map[(feces_map$Week=="10"),]$Mouse_Label
+
+feces_week3_cols_list <- feces_map[(feces_map$Week=="3"),]$Mouse_Label_Cols
+feces_week6_cols_list <- feces_map[(feces_map$Week=="6"),]$Mouse_Label_Cols
+feces_week10_cols_list <- feces_map[(feces_map$Week=="10"),]$Mouse_Label_Cols
+
+feces_cohort_4_list <- feces_map[(feces_map$Cohort=="A"),]$Mouse_Label
+feces_cohort_5_list <- feces_map[(feces_map$Cohort=="B"),]$Mouse_Label
+
+feces_cohort_4_cols_list <- feces_map[(feces_map$Cohort=="A"),]$Mouse_Label_Cols
+feces_cohort_5_cols_list <- feces_map[(feces_map$Cohort=="B"),]$Mouse_Label_Cols
+
+#for subsetting cols (has an X)
+feces_female_cols_list <-feces_map[(feces_map$Sex=="Female"),]$Mouse_Label_Cols
+feces_male_cols_list <-feces_map[(feces_map$Sex=="Male"),]$MMouse_Label_Cols
+
+feces_wild_type_cols_list <-feces_map[(feces_map$Genotype=="Wild_Type"),]$Mouse_Label_Cols
+feces_mutant_cols_list <-feces_map[(feces_map$Genotype=="Mutant"),]$Mouse_Label_Cols
+
+feces_female_wild_type_cols_list <- feces_map[(feces_map$Group=="Female_Wild_Type"),]$Mouse_Label_Cols
+feces_male_wild_type_cols_list <- feces_map[(feces_map$Group=="Male_Wild_Type"),]$Mouse_Label_Cols
+feces_female_mutant_cols_list <- feces_map[(feces_map$Group=="Female_Mutant"),]$Mouse_Label_Cols
+feces_male_mutant_cols_list <- feces_map[(feces_map$Group=="Male_Mutant"),]$Mouse_Label_Cols
+
+feces_week3_cols_list <- feces_map[(feces_map$Week=="3"),]$Mouse_Label_Cols
+feces_week6_cols_list <- feces_map[(feces_map$Week=="6"),]$Mouse_Label_Cols
+feces_week10_cols_list <- feces_map[(feces_map$Week=="10"),]$Mouse_Label_Cols
+
+feces_cohort_4_cols_list<- feces_map[(feces_map$Cohort=="A"),]$Mouse_Label_Cols
+feces_cohort_5_cols_list<- feces_map[(feces_map$Cohort=="B"),]$Mouse_Label_Cols
+```
+
+## 0.9 Split data and metadata into weeks 3,6, and 10
+```{r}
+feces_map_week3  <- filter(feces_map, rownames(feces_map) %in% feces_week3_list)
+feces_map_week6  <- filter(feces_map, rownames(feces_map) %in% feces_week6_list)
+feces_map_week10  <- filter(feces_map, rownames(feces_map) %in% feces_week10_list)
+
+feces_SVs_week3 <- select(feces_SVs, any_of(feces_week3_cols_list))
+feces_SVs_week6 <- select(feces_SVs, any_of(feces_week6_cols_list))
+feces_SVs_week10 <- select(feces_SVs, any_of(feces_week10_cols_list))
+
+feces_genus_week3 <- select(feces_genus, any_of(feces_week3_cols_list))
+feces_genus_week6 <- select(feces_genus, any_of(feces_week6_cols_list))
+feces_genus_week10 <- select(feces_genus, any_of(feces_week10_cols_list))
+
+feces_family_week3 <- select(feces_family, any_of(feces_week3_cols_list))
+feces_family_week6 <- select(feces_family, any_of(feces_week6_cols_list))
+feces_family_week10 <- select(feces_family, any_of(feces_week10_cols_list))
+
+dim(feces_SVs_week3)
+dim(feces_SVs_week6)
+dim(feces_SVs_week10)
+dim(feces_genus_week3)
+dim(feces_genus_week6)
+dim(feces_genus_week10)
+dim(feces_family_week3)
+dim(feces_family_week6)
+dim(feces_family_week10)
+```
+split feces_map into just the metagenomics/metabolite data
+```{r}
+feces_map_metabolites<- feces_map[feces_map$Cohort=="B" & !feces_map$Week=="6",]
+
+dim(feces_map_metabolites)
+
+```
+
+
+
+# Network stat plots
+
+```{r}
+net_stats_female_mutant_week3 <- read.csv("data/week3_female_mutant_stats.csv", header = TRUE, )
+net_stats_female_mutant_week10 <- read.csv("data/week10_female_mutant_stats.csv", header = TRUE, )
+net_stats_male_mutant_week3 <- read.csv("data/week3_male_mutant_stats.csv", header = TRUE, )
+net_stats_male_mutant_week10 <- read.csv("data/week10_male_mutant_stats.csv", header = TRUE, )
+
+net_stats_female_wild_week3 <- read.csv("data/week3_female_wild_stats.csv", header = TRUE, )
+net_stats_female_wild_week10 <- read.csv("data/week10_female_wild_stats.csv", header = TRUE, )
+net_stats_male_wild_week3 <- read.csv("data/week3_male_wild_stats.csv", header = TRUE, )
+net_stats_male_wild_week10 <- read.csv("data/week10_male_wild_stats.csv", header = TRUE, )
+
+#group week
+net_stats_female_mutant_week3$Group_Week <- rep("Female Mutant 3")
+net_stats_male_mutant_week3$Group_Week <- rep("Male Mutant 3")
+
+net_stats_female_mutant_week10$Group_Week <- rep("Female Mutant 10")
+net_stats_male_mutant_week10$Group_Week <- rep("Male Mutant 10")
+
+net_stats_female_wild_week3$Group_Week <- rep("Female Wild-Type 3")
+net_stats_male_wild_week3$Group_Week <- rep("Male Wild-Type 3")
+
+net_stats_female_wild_week10$Group_Week <- rep("Female Wild-Type 10")
+net_stats_male_wild_week10$Group_Week <- rep("Male Wild-Type 10")
+# group
+
+net_stats_female_mutant_week3$Group <- rep("Female Mutant")
+net_stats_male_mutant_week3$Group <- rep("Male Mutant")
+
+net_stats_female_mutant_week10$Group <- rep("Female Mutant")
+net_stats_male_mutant_week10$Group <- rep("Male Mutant")
+
+net_stats_female_wild_week3$Group <- rep("Female Wild-Type")
+net_stats_male_wild_week3$Group <- rep("Male Wild-Type")
+
+net_stats_female_wild_week10$Group <- rep("Female Wild-Type")
+net_stats_male_wild_week10$Group <- rep("Male Wild-Type")
+
+net_stats_female_mutant_week3$Week <- rep("3")
+net_stats_male_mutant_week3$Week <- rep("3")
+
+net_stats_female_wild_week3$Week <- rep("3")
+net_stats_male_wild_week3$Week <- rep("3")
+
+net_stats_female_mutant_week10$Week <- rep("10")
+net_stats_male_mutant_week10$Week <- rep("10")
+
+net_stats_female_wild_week10$Week <- rep("10")
+net_stats_male_wild_week10$Week <- rep("10")
+
+net_stats_all <- rbind(net_stats_female_mutant_week3, net_stats_male_mutant_week3, net_stats_female_wild_week3, net_stats_male_wild_week3,  net_stats_female_mutant_week10, net_stats_male_mutant_week10, net_stats_female_wild_week10, net_stats_male_wild_week10)
+```
+
+
+
+
+Graph
+```{r}
+#net_stats_all$Group_Week <- paste(net_stats_all$Group, net_stats_all$Week)
+
+net_stats_all$Group_Week <- factor(net_stats_all$Group_Week, levels = c("Female Mutant 3", "Female Mutant 10",  "Female Wild-Type 3", "Female Wild-Type 10", "Male Mutant 3" , "Male Mutant 10", "Male Wild-Type 3","Male Wild-Type 10") )
+
+net_stats_all$Week <- factor(net_stats_all$Week, levels = c("3", "10") )
+
+p_network_stats_edges_facet_group <- ggplot(data = net_stats_all,
+                             aes(x = Week, y = Number.of.Edges)) +
+  theme_NMDS() +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = group_color_list) +
+   scale_fill_manual(values = group_color_list) +
+  #facet_wrap(~Group)# 
+  ylim(0, 5000) +
+  facet_grid(~Group) +
+  theme(text = element_text(size = 25))
+  #coord_flip()
+
+
+ggsave('./results/feces_analysis/metagenomics/networks_species/p_network_stats_edges_facet_group.png',width=11, height=7, plot = p_network_stats_edges_facet_group )
+
+
+p_network_stats_density_facet_group <- ggplot(data = net_stats_all,
+                             aes(x = Week, y = Density)) +
+  theme_NMDS() +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = group_color_list) +
+   scale_fill_manual(values = group_color_list) +
+  #facet_wrap(~Group)# 
+  ylim(0, 0.4) +
+  facet_grid(~Group) +
+  theme(text = element_text(size = 25))
+  #coord_flip()
+
+
+ggsave('./results/feces_analysis/metagenomics/networks_species/p_network_stats_density_facet_group.png',width=11, height=7, plot = p_network_stats_density_facet_group )
+
+p_network_stats_Transitivity_facet_group <- ggplot(data = net_stats_all,
+                             aes(x = Week, y = Transitivity)) +
+  theme_NMDS() +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = group_color_list) +
+   scale_fill_manual(values = group_color_list) +
+  #facet_wrap(~Group)# 
+  ylim(0, 1) +
+  facet_grid(~Group) +
+  theme(text = element_text(size = 25))
+  #coord_flip()
+
+ggsave('./results/feces_analysis/metagenomics/networks_species/p_network_stats_Transitivity_facet_group.png',width=11, height=7, plot = p_network_stats_Transitivity_facet_group )
+
+p_network_stats_Closeness.Centrality_facet_group <- ggplot(data = net_stats_all,
+                             aes(x = Week, y = Closeness.Centrality)) +
+  theme_NMDS() +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = group_color_list) +
+   scale_fill_manual(values = group_color_list) +
+  #facet_wrap(~Group)# 
+  ylim(0, 0.6) +
+  facet_grid(~Group) +
+  theme(text = element_text(size = 25))
+  #coord_flip()
+
+
+ggsave('./results/feces_analysis/metagenomics/networks_species/p_network_stats_Closeness.Centrality_facet_group.png',width=11, height=7, plot = p_network_stats_Closeness.Centrality_facet_group )
+
+
+p_network_stats_Betweeness.Centrality_facet_group <- ggplot(data = net_stats_all,
+                             aes(x = Week, y = Betweeness.Centrality)) +
+  theme_NMDS() +
+  geom_boxplot(outlier.shape = NA) +
+  scale_color_manual(values = group_color_list) +
+   scale_fill_manual(values = group_color_list) +
+  #facet_wrap(~Group)# 
+  ylim(0, 0.025) +
+  facet_grid(~Group) +
+  theme(text = element_text(size = 25))
+  #coord_flip()
+
+
+ggsave('./results/feces_analysis/metagenomics/networks_species/p_network_stats_Betweeness.Centrality_facet_group.png',width=11, height=7, plot = p_network_stats_Betweeness.Centrality_facet_group )
+
+```
+
+
+
+# Beta Diversity
+## 16S
+### 2.1 Taxa Barplots
+```{r}
+feces_family_rel <- as.data.frame(apply(feces_family,2,function(x){x/sum(x)}))
+head(feces_family_rel)
+```
+
+Stack the data
+```{r}
+feces_family_rel_t <- as.data.frame(t(feces_family_rel))
+feces_family_rel_t$Group_Week <- feces_map$Group_Week
+feces_family_rel_t$Cohort <- feces_map$Cohort
+feces_family_rel_t$Sample <- rownames(feces_family_rel_t )
+feces_family_rel_t$Sex <- feces_map$Sex
+feces_family_rel_t$Group <- feces_map$Group
+feces_family_rel_t$Week <- feces_map$Week
+feces_family_rel_t$Genotype <- feces_map$Genotype
+feces_family_rel_t$Mouse_Week <- feces_map$Mouse_Week
+feces_family_rel_t$Mouse <- feces_map$Mouse
+
+feces_family_list <- as.list(colnames(feces_family_rel_t[,1:31]))
+feces_family_metadata_list <- as.list(colnames(feces_family_rel_t[,32:40]))
+
+feces_family_rel_t_stack = melt(feces_family_rel_t, id = c("Sample"), id.vars=c(feces_family_metadata_list), measure.vars=c(feces_family_list)) 
+```
+
+
+```{r}
+feces_family_rel_t_stack <- feces_family_rel_t_stack[order(-feces_family_rel_t_stack$value),]
+feces_family_rel_t_stack$variable <- factor(feces_family_rel_t_stack$variable,levels=unique(feces_family_rel_t_stack$variable))
+
+#order grouping factor
+
+feces_family_rel_t_stack$Group_Week <- factor(
+  feces_family_rel_t_stack$Group_Week, levels = c("3_Female_Mutant", "3_Female_Wild_Type", "3_Male_Mutant", "3_Male_Wild_Type", "6_Female_Mutant", "6_Female_Wild_Type", "6_Male_Mutant", "6_Male_Wild_Type","10_Female_Mutant", "10_Female_Wild_Type", "10_Male_Mutant", "10_Male_Wild_Type"
+                                                  ))
+
+feces_family_rel_t_stack$Week <- factor(
+  feces_family_rel_t_stack$Week, levels = c("3", "6", "10"))
+```
+
+
+Graph all samples:
+```{r}
+p_feces_family = ggplot(feces_family_rel_t_stack) +
+    scale_fill_manual(values = family_color_list) +
+    geom_bar(stat = "identity", color = "Black", width = 1, aes(x = Mouse_Week, fill = variable, y = value)) + 
+    theme_classic() +
+    theme(text = element_text(size = 17))  +
+    scale_y_continuous(expand = c(0,0)) + 
+    facet_wrap(~Group_Week, scales = "free_x", nrow = 1, shrink = TRUE) +
+    labs(x = "", y = "Relative Abundance", fill = "Family") 
+p_feces_family
+```
+
+```{r}
+ggsave("./results/feces_analysis/16S/taxa_barplots/all_samples_family_stacked.png",p_feces_family, width = 30, height = 10, limitsize = FALSE)
+```
+
+```{r}
+p_feces_family_facet = ggplot(feces_family_rel_t_stack) +
+    scale_fill_manual(values = family_color_list) +
+    geom_bar(stat = "identity", color = "Black", width = 1, aes(x = Mouse, fill = variable, y = value)) + 
+    theme_classic() +
+    theme(text = element_text(size = 17))  +
+    scale_y_continuous(expand = c(0,0)) + 
+    facet_grid(Week~Group, scales = "free_x",  shrink = TRUE) +
+    labs(x = "", y = "Relative Abundance", fill = "Family") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) 
+
+
+ggsave("./results/feces_analysis/16S/taxa_barplots/all_samples_family_stacked_facet.png",p_feces_family_facet, width = 20, height = 10, limitsize = FALSE)
+```
+
+
+Second, do sample typ averages:
+
+Take means for each Group_Sample_type in feces_family_rel_t
+By cohort
+```{r}
+feces_family_mean_rel_t <- feces_family_rel_t[,1:33] %>% group_by(Group_Week, Cohort) %>% 
+  summarise(across(everything(), mean),
+            .groups = 'drop')  %>%
+  as.data.frame()
+feces_family_mean_rel_t
+```
+
+Stack by sample type and cohort
+```{r}
+feces_family_mean_list <- as.list(colnames(feces_family_mean_rel_t[,3:31]))
+feces_family_mean_metadata_list <-as.list(colnames(feces_family_mean_rel_t[,1:2]))
+
+feces_family_mean_rel_t_stack = melt(feces_family_mean_rel_t, id = c("Group_Sample_Type"), id.vars =c(feces_family_mean_metadata_list), measure.vars=c(feces_family_mean_list)) 
+```
+
+
+```{r}
+feces_family_mean_rel_t_stack <- feces_family_mean_rel_t_stack[order(-feces_family_mean_rel_t_stack$value),]
+feces_family_mean_rel_t_stack$variable <- factor(feces_family_mean_rel_t_stack$variable,levels=unique(feces_family_mean_rel_t_stack$variable))
+```
+```{r}
+feces_family_mean_rel_t_stack$Group_Week <- factor(
+  feces_family_mean_rel_t_stack$Group_Week, levels = c("3_Female_Mutant", "3_Female_Wild_Type", "3_Male_Mutant", "3_Male_Wild_Type", "6_Female_Mutant", "6_Female_Wild_Type", "6_Male_Mutant", "6_Male_Wild_Type","10_Female_Mutant", "10_Female_Wild_Type", "10_Male_Mutant", "10_Male_Wild_Type"))
+```
+or:
+c("3_F_Mut", "6_F_Mut","10_F_Mut", "3_F_WT","6_F_WT", "10_F_WT",  "3_M_Mut", "6_M_Mut","10_M_Mut", "3_M_WT", "6_M_WT" , "10_M_WT"))
+```{r}
+p_feces_family_mean_cohort = ggplot(feces_family_mean_rel_t_stack) +
+    scale_fill_manual(values = family_color_list) +
+    geom_bar(stat = "identity", color = "Black", width = 1, aes(x = Group_Week, fill = variable, y = value)) + 
+    theme_classic() +
+    theme(text = element_text(size = 17))  +
+    scale_y_continuous(expand = c(0,0)) + 
+    ggtitle(label = "feces Family Mean Relative Abundance") +
+    facet_wrap(~Cohort) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+    labs(x = "", y = "Relative Abundance", fill = "Family") 
+p_feces_family_mean_cohort
+
+p_feces_family_mean_cohort_flip <- p_feces_family_mean_cohort + 
+    coord_flip() 
+```
+
+```{r}
+ggsave("./results/feces_analysis/16S/taxa_barplots/all_samples_family_mean_stacked_by_cohort.png",p_feces_family_mean_cohort, width = 15, height = 10, limitsize = FALSE)
+
+ggsave("./results/feces_analysis/16S/taxa_barplots/all_samples_family_mean_stacked_by_cohort_flip.png",p_feces_family_mean_cohort_flip, width = 20, height = 5, limitsize = FALSE)
+```
+
+Cohorts combined
+```{r}
+feces_family_mean_both_cohorts_rel_t <- feces_family_rel_t[,1:32] %>% group_by(Group_Week) %>% 
+  summarise(across(everything(), mean),
+            .groups = 'drop')  %>%
+  as.data.frame()
+feces_family_mean_both_cohorts_rel_t
+```
+Cohorts combined with more variables
+```{r}
+feces_family_mean_both_cohorts_rel_t <- feces_family_rel_t[,c(1:31, 36, 37)] %>% group_by(Group,Week) %>% 
+  summarise(across(everything(), mean),
+            .groups = 'drop')  %>%
+  as.data.frame()
+feces_family_mean_both_cohorts_rel_t
+```
+
+
+
+
+Stack by sample type 
+```{r}
+feces_family_mean_both_cohorts_list <- as.list(colnames(feces_family_mean_both_cohorts_rel_t[,3:33]))
+
+feces_family_mean_both_cohorts_rel_t_stack = melt(feces_family_mean_both_cohorts_rel_t, id = c("Group", "Week"), measure.vars=c(feces_family_mean_both_cohorts_list)) 
+```
+
+order families by abundance
+```{r}
+feces_family_mean_both_cohorts_rel_t_stack <- feces_family_mean_both_cohorts_rel_t_stack[order(-feces_family_mean_both_cohorts_rel_t_stack$value),]
+feces_family_mean_both_cohorts_rel_t_stack$variable <- factor(feces_family_mean_both_cohorts_rel_t_stack$variable,levels=unique(feces_family_mean_both_cohorts_rel_t_stack$variable))
+```
+
+```{r}
+#feces_family_mean_both_cohorts_rel_t_stack$Group_Week <- factor(
+#  feces_family_mean_both_cohorts_rel_t_stack$Group_Week, levels = c("3_Female_Mutant", "3_Female_Wild_Type", "3_Male_Mutant", "3_Male_Wild_Type", "6_Female_Mutant", "6_Female_Wild_Type", "6_Male_Mutant", "6_Male_Wild_Type","10_Female_Mutant", "10_Female_Wild_Type", "10_Male_Mutant", "10_Male_Wild_Type"))
+
+feces_family_mean_both_cohorts_rel_t_stack$Group <- factor(
+  feces_family_mean_both_cohorts_rel_t_stack$Group, levels = c("Female_Mutant", "Female_Wild_Type", "Male_Mutant", "Male_Wild_Type"))
+
+feces_family_mean_both_cohorts_rel_t_stack$Week <- factor(
+  feces_family_mean_both_cohorts_rel_t_stack$Week, levels = c("3", "6", "10"))
+```
+
+
+Facet by week
+```{r}
+p_feces_family_mean_both_cohorts = ggplot(feces_family_mean_both_cohorts_rel_t_stack) +
+    scale_fill_manual(values = family_color_list) +
+    geom_bar(stat = "identity", color = "Black", width = 1, aes(x = Group, fill = variable, y = value)) + 
+    theme_classic() +
+    theme(text = element_text(size = 17))  +
+    scale_y_continuous(expand = c(0,0)) + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+    labs(x = "", y = "Relative Abundance", fill = "Family") 
+
+ggsave("./results/feces_analysis/16S/taxa_barplots/all_samples_family_mean_both_cohorts_stacked.png",p_feces_family_mean_both_cohorts + facet_wrap(~Week), width = 10, height = 10, limitsize = FALSE)
+```
+
+```{r}
+p_feces_family_mean_both_cohorts_flip <- p_feces_family_mean_both_cohorts +
+    facet_wrap(~Week, nrow = 3) +
+    coord_flip() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5)) 
+
+ggsave("./results/feces_analysis/16S/taxa_barplots/all_samples_family_mean_both_cohorts_stacked_by_flip.png",p_feces_family_mean_both_cohorts_flip , width = 20, height = 5, limitsize = FALSE)
+
+```
+
+Facet by group
+```{r}
+p_feces_family_mean_both_cohorts_group = ggplot(feces_family_mean_both_cohorts_rel_t_stack) +
+    scale_fill_manual(values = family_color_list) +
+    geom_bar(stat = "identity", color = "Black", width = 1, aes(x = Week, fill = variable, y = value)) + 
+    theme_classic() +
+    theme(text = element_text(size = 15))  +
+    scale_y_continuous(expand = c(0,0)) + 
+    labs(x = "", y = "Relative Abundance", fill = "Family") 
+
+ggsave("./results/feces_analysis/16S/taxa_barplots/all_samples_family_mean_both_cohorts_stacked_group.png",p_feces_family_mean_both_cohorts_group + facet_wrap(~Group, nrow = 1), width = 12, height = 10, limitsize = FALSE)
+```
+
+```{r}
+p_feces_family_mean_both_cohorts_flip_group <- p_feces_family_mean_both_cohorts_group +
+    facet_wrap(~Group, nrow = 4) +
+    coord_flip() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5)) 
+
+ggsave("./results/feces_analysis/16S/taxa_barplots/all_samples_family_mean_both_cohorts_stacked_by_group_flip.png",p_feces_family_mean_both_cohorts_flip_group , width = 15, height = 5, limitsize = FALSE)
+
+```
+
+
+### 2.1.4 Taxa Barplots Stats for taxa barplots
+Output values for descriptive Statistics
+```{r}
+write.csv(feces_family_mean_both_cohorts_rel_t, 
+"./results/feces_analysis/16S/taxa_barplots/feces_family_mean_both_cohorts_relative_abundance.csv")
+```
+
+Top 10 most abundant LMEs-
+```{r}
+#get top 10 most
+feces_family_10_colmeans <- data.frame(sort(format(colMeans(feces_family_mean_both_cohorts_rel_t[3:33]), scientific = FALSE), decreasing= TRUE)[1:10])
+feces_family_10_colmeans$Family <- rownames(feces_family_10_colmeans)
+colnames(feces_family_10_colmeans) <- c("Feces_Abundance", "Family")
+```
+
+Now do LMEs for intestine_top_10_family_abundances
+want columns as families, rows as samples
+```{r}
+feces_family_top_10_all_samples <- data.frame(t(filter(feces_family_tx, rownames(feces_family_tx) %in% feces_family_10_colmeans$Family)))
+
+feces_family_top_10_all_samples$Sex <- feces_map$Sex
+feces_family_top_10_all_samples$Genotype <- feces_map$Genotype
+feces_family_top_10_all_samples$Week <- feces_map$Week
+feces_family_top_10_all_samples$Cohort <- feces_map$Cohort
+feces_family_top_10_all_samples$Mouse <- feces_map$Mouse
+feces_family_top_10_all_samples$Weight <- feces_map$Weight
+```
+
+```{r}
+#change the number of names to how many genera there are
+feces_top_10_family_names <- colnames(feces_family_top_10_all_samples)[1:10]
+num_feces_top_10_family <- length(feces_top_10_family_names)
+
+# create a named list to hold the fitted models
+feces_family_model_list <- as.list(1:num_feces_top_10_family)
+names(feces_family_model_list) <- feces_top_10_family_names
+
+feces_family_model_anova_list <- as.list(1:num_feces_top_10_family)
+names(feces_family_model_anova_list) <- feces_top_10_family_names
+
+# loop over names
+for(i in feces_top_10_family_names){ 
+  # create temporary data matrix and model formula
+  tmp_top_10 <- feces_family_top_10_all_samples[ , c(i,"Sex","Genotype","Week","Cohort", "Mouse")]
+  fml_top_10 <- as.formula( paste( i, "~", paste(c("Sex","Genotype", "Week"), collapse="*") ) )
+  # assign fit to list by name
+  feces_family_model_list[[i]] <- lme(fml_top_10, random = list(~1|Cohort, ~1|Mouse), method = "ML", data= tmp_top_10)
+  feces_family_model_anova_list[[i]] <- Anova(lme(fml_top_10, random = list(~1|Cohort, ~1|Mouse), method = "ML", data= tmp_top_10))
+}
+
+capture.output(feces_family_model_anova_list, file="./results/feces_analysis/16S/taxa_barplots/family_abundance_stats/lme_feces_top_10_family_anova.csv")
+
+capture.output(feces_family_model_list, file="./results/feces_analysis/16S/taxa_barplots/family_abundance_stats/lme_feces_top_10_family_models.csv")
+```
+
+
+Do FDR correction 
+```{r}
+p_values_feces_top_10_family_anova_table <- data.frame(lapply(feces_family_model_anova_list, "[", , "Pr(>Chisq)"))
+rownames(p_values_feces_top_10_family_anova_table) <- rownames(feces_family_model_anova_list$Lachnospiraceae)
+
+write.csv(p_values_feces_top_10_family_anova_table, file="./results/feces_analysis/16S/taxa_barplots/family_abundance_stats/lme_feces_top_10_family_anova_p_value_table.csv")
+
+p_values_feces_top_10_family_anova_table_fdr <- t(data.frame(apply(p_values_feces_top_10_family_anova_table, 1, function(x) p.adjust(x, method = "fdr"))))
+
+write.csv(p_values_feces_top_10_family_anova_table_fdr, file="./results/feces_analysis/16S/taxa_barplots/family_abundance_stats/lme_feces_top_10_family_anova_p_value_table_FDR.csv")
+```
+
+### 2.3 16S clr-aitchison (Euclidean distance)
+#### 2.3.1. Zero replace the SV tables and clr
+```{r}
+feces_SVs_zerorep <- feces_SVs
+feces_SVs_zerorep[feces_SVs_zerorep == 0] <- 0.001
+tail(feces_SVs_zerorep)
+
+feces_genus_zerorep <- feces_genus
+feces_genus_zerorep[feces_genus_zerorep == 0] <- 0.001
+tail(feces_genus_zerorep)
+
+feces_family_zerorep <- feces_family
+feces_family_zerorep[feces_family_zerorep == 0] <- 0.001
+tail(feces_family_zerorep)
+
+feces_SVs_tx<- data.frame(t(clr(t(feces_SVs_zerorep))))
+head(feces_SVs_tx)
+
+feces_genus_tx <- data.frame(t(clr(t(feces_genus_zerorep))))
+head(feces_genus_tx)
+
+feces_family_tx <- data.frame(t(clr(t(feces_family_zerorep))))
+head(feces_family_tx)
+
+dim(feces_SVs_tx)
+dim(feces_genus_tx)
+dim(feces_family_tx)
+
+dim(feces_map)
+```
+
+### 2.3.2  Mixed effect permanova SVs
+Cohort effect
+```{r}
+feces_SVs_aitchison_dist_c45<-vegdist(as.matrix(t(feces_SVs_tx)) , method='euclidean')
+
+feces_SVs_c45_cohort_permanova <- with(feces_map, adonis2(feces_SVs_aitchison_dist_c45 ~ Cohort, data = feces_map, permutations = 9999))
+```
+
+
+```{r}
+
+feces_SVs_c45_mixed_permanova <- with(feces_map, adonis2(feces_SVs_aitchison_dist_c45 ~ Sex*Genotype*Week, data = feces_map, permutations = 9999, strata = feces_map$Cohort))
+
+capture.output(feces_SVs_c45_mixed_permanova, file = "./results/feces_analysis/16S/permanova/aitchison/feces_SVs_c45_mixed_permanova.csv")
+```
+
+
+### 2.3.3 NMDS SVs all weeks together
+
+```{r}
+feces_SVs_NMDS = metaMDS(t(feces_SVs_tx), distance = "euclidean", parallel = 2, k = 2)
+
+feces_SVs_scores = as.data.frame(scores(feces_SVs_NMDS))
+feces_SVs_scores$Cohort <- feces_map$Cohort
+feces_SVs_scores$Sex <- feces_map$Sex
+feces_SVs_scores$Group <- feces_map$Group
+feces_SVs_scores$Genotype <- feces_map$Genotype
+feces_SVs_scores$Week <- factor(feces_map$Week, levels = c("3", "6", "10"))
+feces_SVs_scores$Group_Week <- feces_map$Group_Week
+```
+Bad stress (0.28)
+
+
+Graph week by group
+Theme
+```{r}
+theme_NMDS <- function(){ 
+    font <- "Arial"   #assign font family up front
+    theme_classic() %+replace%    #replace elements 
+    theme( 
+      text = element_text(size = 20),
+      legend.title= element_blank(), 
+      #legend.position="none",
+      plot.margin = unit(c(0, 0.25, 0, 0), "cm") 
+      )
+}
+```
+
+
+```{r}
+p_NMDS_feces_SVs_week_by_group <- ggplot(data = feces_SVs_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Week)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Week,
+                                     color =Week), alpha =0.18) +
+  scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  facet_grid(~Group) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/16S/NMDS/aitchison/all_together/NMDS_feces_SVs_week_by_group.png',width=12, height=5, plot = p_NMDS_feces_SVs_week_by_group)
+
+p_NMDS_feces_SVs_group_by_week_genotype <- ggplot(data = feces_SVs_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Genotype~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/16S/NMDS/aitchison/all_together/NMDS_feces_SVs_group_by_week_genotype.png',width=12, height=5, plot = p_NMDS_feces_SVs_group_by_week_genotype )
+
+p_NMDS_feces_SVs_group_by_week_sex <- ggplot(data = feces_SVs_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Sex~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/16S/NMDS/aitchison/all_together/NMDS_feces_SVs_group_by_week_sex.png',width=12, height=5, plot = p_NMDS_feces_SVs_group_by_week_sex )
+```
+```{r}
+p_NMDS_feces_SVs_cohort <- ggplot(data = feces_SVs_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Cohort)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Cohort,
+                                     color =Cohort), alpha =0.18) +
+  scale_color_manual(values = cohort_color_list) +
+  scale_fill_manual(values = cohort_color_list) +
+  facet_wrap(~Group) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/16S/NMDS/aitchison/all_together/NMDS_feces_SVs_cohortp.png',width=8, height=8, plot = p_NMDS_feces_SVs_cohort)
+
+p_NMDS_feces_SVs_cohort_group_week <- ggplot(data = feces_SVs_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Week)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Week,
+                                     color =Week), alpha =0.18) +
+  scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  facet_grid(Cohort~Group) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/16S/NMDS/aitchison/all_together/NMDS_feces_SVs_cohort_group_week.png',width=12, height=8, plot = p_NMDS_feces_SVs_cohort_group_week)
+```
+
+
+## Genes Beta Diversity
+### Genes Mixed Effect PERMANOVA
+
+```{r}
+genes_aitchison_dist_c45<-vegdist(as.matrix(t(genes_tx)) , method='euclidean')
+
+orthologs_aitchison_dist_c45<-vegdist(as.matrix(t(orthologs_tx)) , method='euclidean')
+
+genes_c45_mixed_permanova <- with(feces_map_metabolites, adonis2(genes_aitchison_dist_c45 ~ Sex*Genotype*Week, data = feces_map_metabolites, permutations = 9999, strata = feces_map_metabolites$Cohort))
+
+capture.output(genes_c45_mixed_permanova, file = "./results/feces_analysis/genes/permanova/genes_c45_mixed_permanova.csv")
+
+orthologs_c45_mixed_permanova <- with(feces_map_metabolites, adonis2(orthologs_aitchison_dist_c45 ~ Sex*Genotype*Week, data = feces_map_metabolites, permutations = 9999, strata = feces_map_metabolites$Cohort))
+
+capture.output(orthologs_c45_mixed_permanova, file = "./results/feces_analysis/genes/permanova/orthologs_c45_mixed_permanova.csv")
+```
+### Genes NMDS
+Genes
+```{r}
+genes_NMDS = metaMDS(t(genes_tx), distance = "euclidean", parallel = 2, k = 2)
+
+genes_scores = as.data.frame(scores(genes_NMDS))
+genes_scores$Sex <- feces_map_metabolites$Sex
+genes_scores$Group <- feces_map_metabolites$Group
+genes_scores$Genotype <- feces_map_metabolites$Genotype
+genes_scores$Week <- factor(feces_map_metabolites$Week, levels = c("3", "10"))
+genes_scores$Group_Week <- feces_map_metabolites$Group_Week
+```
+mediocre stress (0.237)
+
+
+Graph week by group
+
+```{r}
+p_NMDS_genes_week_by_group <- ggplot(data = genes_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Week)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Week,
+                                     color =Week), alpha =0.18) +
+  scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  facet_grid(~Group) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/genes/NMDS/NMDS_genes_week_by_group.png',width=8, height=5, plot = p_NMDS_genes_week_by_group)
+
+p_NMDS_genes_group_by_week_genotype <- ggplot(data = genes_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Genotype~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/genes/NMDS/NMDS_genes_group_by_week_genotype.png',width=8, height=5, plot = p_NMDS_genes_group_by_week_genotype )
+
+p_NMDS_genes_group_by_week_sex <- ggplot(data = genes_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Sex~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/genes/NMDS/NMDS_genes_group_by_week_sex.png',width=8, height=5, plot = p_NMDS_genes_group_by_week_sex )
+```
+
+Orthologs
+```{r}
+orthologs_NMDS = metaMDS(t(orthologs_tx), distance = "euclidean", parallel = 2, k = 2)
+
+orthologs_scores = as.data.frame(scores(orthologs_NMDS))
+orthologs_scores$Sex <- feces_map_metabolites$Sex
+orthologs_scores$Group <- feces_map_metabolites$Group
+orthologs_scores$Genotype <- feces_map_metabolites$Genotype
+orthologs_scores$Week <- factor(feces_map_metabolites$Week, levels = c("3", "10"))
+orthologs_scores$Group_Week <- feces_map_metabolites$Group_Week
+```
+mediocre stress (0.22)
+
+
+Graph week by group
+
+```{r}
+p_NMDS_orthologs_week_by_group <- ggplot(data = orthologs_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Week)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Week,
+                                     color =Week), alpha =0.18) +
+  scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  facet_grid(~Group) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/genes/NMDS/NMDS_orthologs_week_by_group.png',width=8, height=5, plot = p_NMDS_orthologs_week_by_group)
+
+p_NMDS_orthologs_group_by_week_genotype <- ggplot(data = orthologs_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Genotype~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/genes/NMDS/NMDS_orthologs_group_by_week_genotype.png',width=8, height=5, plot = p_NMDS_orthologs_group_by_week_genotype )
+
+p_NMDS_orthologs_group_by_week_sex <- ggplot(data = orthologs_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Sex~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/genes/NMDS/NMDS_orthologs_group_by_week_sex.png',width=8, height=5, plot = p_NMDS_orthologs_group_by_week_sex )
+```
+
+
+
+## Metagenomes- binned beta diversity
+
+## Species dispersion/centroid
+### Metagenomes_binned species Mixed Effect PERMANOVA
+permanova
+```{r}
+# meta_binned_species_tx
+meta_binned_species_aitchison_dist_c45<-vegdist(as.matrix(t(meta_binned_species_tx)) , method='euclidean')
+
+meta_binned_species_c45_mixed_permanova <- with(feces_map_metabolites, adonis2(meta_binned_species_aitchison_dist_c45 ~ Sex*Genotype*Week, data = feces_map_metabolites, permutations = 9999))
+
+capture.output(meta_binned_species_c45_mixed_permanova, file = "./results/feces_analysis/metagenomics/binned/permanova/meta_binned_species_c45_mixed_permanova.csv")
+
+```
+
+### Metagenomes_binned Species NMDS
+meta_binned_species
+```{r}
+meta_binned_species_NMDS = metaMDS(meta_binned_species_aitchison_dist_c45, parallel = 2, k = 2)
+
+meta_binned_species_scores = as.data.frame(scores(meta_binned_species_NMDS))
+meta_binned_species_scores$Sex <- feces_map_metabolites$Sex
+meta_binned_species_scores$Group <- feces_map_metabolites$Group
+meta_binned_species_scores$Genotype <- feces_map_metabolites$Genotype
+meta_binned_species_scores$Week <- factor(feces_map_metabolites$Week, levels = c("3", "10"))
+meta_binned_species_scores$Group_Week <- feces_map_metabolites$Group_Week
+```
+decent stress (0.19)
+
+
+Graph week by group
+
+```{r}
+p_NMDS_meta_binned_species_week_by_group <- ggplot(data = meta_binned_species_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Week)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Week,
+                                     color =Week), alpha =0.18) +
+  scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  facet_grid(~Group) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metagenomics/binned/NMDS/NMDS_meta_binned_species_week_by_group.png',width=8, height=5, plot = p_NMDS_meta_binned_species_week_by_group)
+
+p_NMDS_meta_binned_species_group_by_week_genotype <- ggplot(data = meta_binned_species_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Genotype~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metagenomics/binned/NMDS/NMDS_meta_binned_species_group_by_week_genotype.png',width=8, height=5, plot = p_NMDS_meta_binned_species_group_by_week_genotype )
+
+p_NMDS_meta_binned_species_group_by_week_sex <- ggplot(data = meta_binned_species_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Sex~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metagenomics/binned/NMDS/NMDS_meta_binned_species_group_by_week_sex.png',width=8, height=5, plot = p_NMDS_meta_binned_species_group_by_week_sex )
+```
+
+# Metabolites 
+
+
+Make the map and make sure the samples match
+```{r}
+feces_map_metabolites <- feces_map[feces_map$Cohort=="B" & !feces_map$Week=="6",]
+setequal (colnames(feces_lipids), feces_map_metabolites$Mouse_Label_Cols)
+setequal (colnames(feces_amines), feces_map_metabolites$Mouse_Label_Cols)
+setequal (colnames(feces_primary), feces_map_metabolites$Mouse_Label_Cols)
+
+```
+
+
+## Metabolites absolute abundances platforms separate permanova
+
+PERMANOVA
+```{r}
+lipids
+#feces_lipids_nontx_euclidean_dist<-vegdist(as.matrix(t(feces_lipids)) , method='euclidean')
+
+feces_lipids_nontx_mixed_permanova <- with(feces_map_metabolites, adonis2(feces_lipids_nontx_euclidean_dist ~ Sex*Genotype*Week, data = feces_map_metabolites, permutations = 9999))
+
+capture.output(feces_lipids_nontx_mixed_permanova, file = "./results/feces_analysis/metabolites/permanova/euclidean_nontx/feces_lipids_nontx_mixed_permanova.csv")
+
+#amines
+feces_amines_nontx_euclidean_dist<-vegdist(as.matrix(t(feces_amines)) , method='euclidean')
+
+feces_amines_nontx_mixed_permanova <- with(feces_map_metabolites, adonis2(feces_amines_nontx_euclidean_dist ~ Sex*Genotype*Week, data = feces_map_metabolites, permutations = 9999))
+
+capture.output(feces_amines_nontx_mixed_permanova, file = "./results/feces_analysis/metabolites/permanova/euclidean_nontx/feces_amines_nontx_mixed_permanova.csv")
+
+```
+
+
+
+## Metabolites absolute abundances platforms separate NMDS
+Lipids
+```{r}
+feces_lipids_untx_NMDS = metaMDS(t(feces_lipids), distance = "euclidean", parallel = 2, k = 2)
+
+
+
+feces_lipids_untx_scores = as.data.frame(scores(feces_lipids_untx_NMDS)$sites)
+feces_lipids_untx_scores$Cohort <- feces_map_metabolites$Cohort
+feces_lipids_untx_scores$Sex <- feces_map_metabolites$Sex
+feces_lipids_untx_scores$Group <- feces_map_metabolites$Group
+feces_lipids_untx_scores$Genotype <- feces_map_metabolites$Genotype
+feces_lipids_untx_scores$Week <- factor(feces_map_metabolites$Week, levels = c("3", "10"))
+feces_lipids_untx_scores$Group_Week <- feces_map_metabolites$Group_Week
+```
+
+Graph week by group
+Theme
+```{r}
+theme_NMDS <- function(){ 
+    font <- "Arial"   #assign font family up front
+    theme_classic() %+replace%    #replace elements 
+    theme( 
+      text = element_text(size = 20),
+      legend.title= element_blank(), 
+      #legend.position="none",
+      plot.margin = unit(c(0, 0.25, 0, 0), "cm") 
+      )
+}
+```
+
+
+```{r}
+p_NMDS_feces_lipids_untx_week_by_group <- ggplot(data = feces_lipids_untx_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Week)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Week,
+                                     color =Week), alpha =0.18) +
+  scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  facet_grid(~Group) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metabolites/NMDS/euclidean_untx/NMDS_feces_lipids_week_by_group.png',width=12, height=5, plot = p_NMDS_feces_lipids_untx_week_by_group)
+```
+```{r}
+p_NMDS_feces_lipids_untx_group_by_week <- ggplot(data = feces_lipids_untx_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(~Week) +
+  theme_NMDS()  
+p_NMDS_feces_lipids_untx_group_by_week 
+ggsave('./results/feces_analysis/metabolites/NMDS/euclidean_untx/NMDS_feces_lipids_group_by_week.png',width=8, height=4, plot = p_NMDS_feces_lipids_untx_group_by_week)
+
+p_NMDS_feces_lipids_untx_genotype_by_week <- ggplot(data = feces_lipids_untx_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Genotype~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metabolites/NMDS/euclidean_untx/NMDS_feces_lipids_genotype_by_week.png',width=10, height=6, plot = p_NMDS_feces_lipids_untx_genotype_by_week)
+
+p_NMDS_feces_lipids_untx_sex_by_week <- ggplot(data = feces_lipids_untx_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Sex~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metabolites/NMDS/euclidean_untx/NMDS_feces_lipids_sex_by_week.png',width=10, height=6, plot = p_NMDS_feces_lipids_untx_sex_by_week)
+```
+Amines
+```{r}
+feces_amines_untx_NMDS = metaMDS(t(feces_amines), distance = "euclidean", parallel = 2, k = 2)
+
+
+
+feces_amines_untx_scores = as.data.frame(scores(feces_amines_untx_NMDS)$sites)
+feces_amines_untx_scores$Cohort <- feces_map_metabolites$Cohort
+feces_amines_untx_scores$Sex <- feces_map_metabolites$Sex
+feces_amines_untx_scores$Group <- feces_map_metabolites$Group
+feces_amines_untx_scores$Genotype <- feces_map_metabolites$Genotype
+feces_amines_untx_scores$Week <- factor(feces_map_metabolites$Week, levels = c("3", "10"))
+feces_amines_untx_scores$Group_Week <- feces_map_metabolites$Group_Week
+```
+
+```{r}
+p_NMDS_feces_amines_untx_week_by_group <- ggplot(data = feces_amines_untx_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Week)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Week,
+                                     color =Week), alpha =0.18) +
+  scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  facet_grid(~Group) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metabolites/NMDS/euclidean_untx/NMDS_feces_amines_week_by_group.png',width=12, height=5, plot = p_NMDS_feces_amines_untx_week_by_group)
+
+p_NMDS_feces_amines_untx_group_by_week <- ggplot(data = feces_amines_untx_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(~Week) +
+  theme_NMDS()  
+p_NMDS_feces_amines_untx_group_by_week 
+ggsave('./results/feces_analysis/metabolites/NMDS/euclidean_untx/NMDS_feces_amines_group_by_week.png',width=8, height=4, plot = p_NMDS_feces_amines_untx_group_by_week)
+
+p_NMDS_feces_amines_untx_genotype_by_week <- ggplot(data = feces_amines_untx_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Genotype~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metabolites/NMDS/euclidean_untx/NMDS_feces_amines_genotype_by_week.png',width=10, height=6, plot = p_NMDS_feces_amines_untx_genotype_by_week)
+
+p_NMDS_feces_amines_untx_sex_by_week <- ggplot(data = feces_amines_untx_scores) + 
+  geom_point(aes(x = NMDS1, y = NMDS2, color = Group)) + 
+  stat_ellipse(geom ="polygon",aes(x = NMDS1, y = NMDS2, fill = Group,
+                                     color =Group), alpha =0.18) +
+  scale_color_manual(values = group_color_list) +
+  scale_fill_manual(values = group_color_list) +
+  facet_grid(Sex~Week) +
+  theme_NMDS()  
+
+ggsave('./results/feces_analysis/metabolites/NMDS/euclidean_untx/NMDS_feces_amines_sex_by_week.png',width=10, height=6, plot = p_NMDS_feces_amines_untx_sex_by_week)
+```
+
+
+
+## RF Metabolites Random Forest by metabolites class each week M vs F by genotype comparison- clr
+###Lipids
+#### split transformed data into sections 
+```{r}
+#Split by group
+feces_lipids_class_tx_mutant_week3 <-  filter(feces_lipids_class_tx %>% select(any_of(feces_week3_cols_list)) %>% select(any_of(feces_mutant_cols_list))) 
+dim(feces_lipids_class_tx_mutant_week3 )
+
+feces_lipids_class_tx_wild_type_week3 <-  filter(feces_lipids_class_tx %>% select(any_of(feces_week3_cols_list)) %>% select(any_of(feces_wild_type_cols_list))) 
+dim(feces_lipids_class_tx_wild_type_week3 )
+
+feces_lipids_class_tx_mutant_week10 <-  filter(feces_lipids_class_tx %>% select(any_of(feces_week10_cols_list)) %>% select(any_of(feces_mutant_cols_list))) 
+dim(feces_lipids_class_tx_mutant_week10 )
+
+feces_lipids_class_tx_wild_type_week10 <-  filter(feces_lipids_class_tx %>% select(any_of(feces_week10_cols_list)) %>% select(any_of(feces_wild_type_cols_list))) 
+dim(feces_lipids_class_tx_wild_type_week10 )
+```
+
+#### lipids_class_tx week3_mutant
+Need samples as columns and features as rows in a data frame
+```{r}
+#Add sex as a row:
+feces_lipids_class_tx_mutant_week3_week <- rbind(feces_lipids_class_tx_mutant_week3, feces_map_metabolites[feces_map_metabolites$Genotype=="Mutant" & feces_map_metabolites$Week=="3" ,]$Sex)
+
+collength_feces_lipids_class_tx_mutant_week3 <- length(rownames(feces_lipids_class_tx_mutant_week3_week))
+
+split_feces_lipids_class_tx_mutant_week3_for_RF <- sample.split(feces_lipids_class_tx_mutant_week3_week, SplitRatio = 0.7)
+str(split_feces_lipids_class_tx_mutant_week3_for_RF)
+
+#Set train and test sample sets
+train_feces_lipids_class_tx_mutant_week3_for_RF <- data.frame(subset(t(feces_lipids_class_tx_mutant_week3_week), split_feces_lipids_class_tx_mutant_week3_for_RF == "TRUE"))
+
+
+test_feces_lipids_class_tx_mutant_week3_for_RF <- data.frame(subset(t(feces_lipids_class_tx_mutant_week3_week), split_feces_lipids_class_tx_mutant_week3_for_RF == "FALSE"))
+dim(train_feces_lipids_class_tx_mutant_week3_for_RF)
+dim(test_feces_lipids_class_tx_mutant_week3_for_RF)
+```
+Train
+```{r}
+set.seed(120)  # Setting seed
+
+class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF = randomForest(x = train_feces_lipids_class_tx_mutant_week3_for_RF[-collength_feces_lipids_class_tx_mutant_week3],
+                          y = factor(train_feces_lipids_class_tx_mutant_week3_for_RF$X60),
+                             ntree = 500)
+
+capture.output(class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_lipids_class_tx_mutant_week3.csv')
+```
+
+```{r}
+plot(class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF)
+
+# Importance list
+importance_feces_week_lipids_class_tx_mutant_week3<-importance(class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF)
+  
+# Variable importance plot
+ varImpPlot(class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF, main = "lipids_class_tx Importance in class_txifying Week Clusters")
+
+
+#Graph the important features
+
+importance_feces_week_lipids_class_tx_mutant_week3_df <- data.frame(importance_feces_week_lipids_class_tx_mutant_week3)
+
+importance_feces_week_lipids_class_tx_mutant_week3_df 
+
+importance_feces_week_lipids_class_tx_mutant_week3_df  <- importance_feces_week_lipids_class_tx_mutant_week3_df  %>%
+  arrange(desc(MeanDecreaseGini)) 
+importance_feces_week_lipids_class_tx_mutant_week3_df    
+
+importance_feces_week_lipids_class_tx_mutant_week3_top_20_df <-head(importance_feces_week_lipids_class_tx_mutant_week3_df, 20)
+importance_feces_week_lipids_class_tx_mutant_week3_top_20_df$lipids_class_tx <- rownames(importance_feces_week_lipids_class_tx_mutant_week3_top_20_df)
+```
+Graph the gini importance for top 15
+```{r}
+p_importance_feces_week_lipids_class_tx_mutant_week3 <- ggplot(
+  data = importance_feces_week_lipids_class_tx_mutant_week3_top_20_df, 
+  aes(x = reorder(lipids_class_tx, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(aes(), width = 0.2) +
+  theme_classic() +
+  labs(title = "lipids_class_tx") +
+  xlab(" ") + ylab("Gini Score") +
+  theme(text = element_text(size = 15))  +
+  coord_flip() 
+
+write.csv(importance_feces_week_lipids_class_tx_mutant_week3_df, 
+               file ="./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_lipids_class_tx_RF_week_mutant_week3.csv")
+
+ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/importance_plot_lipids_class_tx_RF_week_mutant_week3.png',width=8, height=5, p_importance_feces_week_lipids_class_tx_mutant_week3)
+```
+
+ROC curve
+```{r}
+pred1_lipids_class_tx_mutant_week3_feces_week=predict(class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF,type = "prob")
+
+perf_lipids_class_tx_mutant_week3_feces_week = prediction(pred1_lipids_class_tx_mutant_week3_feces_week [,2], list(train_feces_lipids_class_tx_mutant_week3_for_RF$X60))
+# 1. Area under curve
+auc_lipids_class_tx_mutant_week3_feces_week = performance(perf_lipids_class_tx_mutant_week3_feces_week, "auc")
+
+# 2. True Positive and Negative Rate
+pred3_lipids_class_tx_mutant_week3_feces_week = performance(perf_lipids_class_tx_mutant_week3_feces_week, "tpr","fpr")
+# 3. Plot the ROC curve
+c4_feces_week_ROC <- plot(pred3_lipids_class_tx_mutant_week3_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+c4_feces_week_ROC
+
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+jpeg('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/RF_ROC_lipids_class_tx_mutant_week3_feces_week.jpg')
+plot(pred3_lipids_class_tx_mutant_week3_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+dev.off()
+
+#How does it do on test set?
+# Predicting the Test set results
+y_pred_lipids_class_tx_mutant_week3_feces_week = predict(class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF, newdata = test_feces_lipids_class_tx_mutant_week3_for_RF[-collength_feces_lipids_class_tx_mutant_week3])
+
+confusion_mtx_lipids_class_tx_mutant_week3_feces_week = table(test_feces_lipids_class_tx_mutant_week3_for_RF[, collength_feces_lipids_class_tx_mutant_week3], 
+                                        y_pred_lipids_class_tx_mutant_week3_feces_week)
+confusion_mtx_lipids_class_tx_mutant_week3_feces_week
+```
+
+
+#### lipids class_tx week 3 wild_type
+Need samples as columns and features as rows in a data frame
+```{r}
+#Add sex as a row:
+feces_lipids_class_tx_wild_type_week3_week <- rbind(feces_lipids_class_tx_wild_type_week3, feces_map_metabolites[feces_map_metabolites$Genotype=="Wild_Type" & feces_map_metabolites$Week=="3" ,]$Sex)
+
+collength_feces_lipids_class_tx_wild_type_week3 <- length(rownames(feces_lipids_class_tx_wild_type_week3_week))
+
+split_feces_lipids_class_tx_wild_type_week3_for_RF <- sample.split(feces_lipids_class_tx_wild_type_week3_week, SplitRatio = 0.7)
+str(split_feces_lipids_class_tx_wild_type_week3_for_RF)
+
+#Set train and test sample sets
+train_feces_lipids_class_tx_wild_type_week3_for_RF <- data.frame(subset(t(feces_lipids_class_tx_wild_type_week3_week), split_feces_lipids_class_tx_wild_type_week3_for_RF == "TRUE"))
+
+
+test_feces_lipids_class_tx_wild_type_week3_for_RF <- data.frame(subset(t(feces_lipids_class_tx_wild_type_week3_week), split_feces_lipids_class_tx_wild_type_week3_for_RF == "FALSE"))
+dim(train_feces_lipids_class_tx_wild_type_week3_for_RF)
+dim(test_feces_lipids_class_tx_wild_type_week3_for_RF)
+```
+Train
+```{r}
+set.seed(120)  # Setting seed
+
+
+class_txifier_feces_week_lipids_class_tx_wild_type_week3_for_RF = randomForest(x = train_feces_lipids_class_tx_wild_type_week3_for_RF[-collength_feces_lipids_class_tx_wild_type_week3],
+                          y = factor(train_feces_lipids_class_tx_wild_type_week3_for_RF$X60),
+                             ntree = 500)
+
+capture.output(class_txifier_feces_week_lipids_class_tx_wild_type_week3_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_lipids_class_tx_wild_type_week3.csv')
+```
+
+```{r}
+plot(class_txifier_feces_week_lipids_class_tx_wild_type_week3_for_RF)
+
+# Importance list
+importance_feces_week_lipids_class_tx_wild_type_week3<-importance(class_txifier_feces_week_lipids_class_tx_wild_type_week3_for_RF)
+  
+# Variable importance plot
+ varImpPlot(class_txifier_feces_week_lipids_class_tx_wild_type_week3_for_RF, main = "lipids_class_tx Importance in class_txifying Week Clusters")
+
+
+#Graph the important features
+
+importance_feces_week_lipids_class_tx_wild_type_week3_df <- data.frame(importance_feces_week_lipids_class_tx_wild_type_week3)
+
+importance_feces_week_lipids_class_tx_wild_type_week3_df 
+
+importance_feces_week_lipids_class_tx_wild_type_week3_df  <- importance_feces_week_lipids_class_tx_wild_type_week3_df  %>%
+  arrange(desc(MeanDecreaseGini)) 
+importance_feces_week_lipids_class_tx_wild_type_week3_df    
+
+importance_feces_week_lipids_class_tx_wild_type_week3_top_20_df <-head(importance_feces_week_lipids_class_tx_wild_type_week3_df, 20)
+importance_feces_week_lipids_class_tx_wild_type_week3_top_20_df$lipids_class_tx <- rownames(importance_feces_week_lipids_class_tx_wild_type_week3_top_20_df)
+```
+Graph the gini importance for top 15
+```{r}
+p_importance_feces_week_lipids_class_tx_wild_type_week3 <- ggplot(
+  data = importance_feces_week_lipids_class_tx_wild_type_week3_top_20_df, 
+  aes(x = reorder(lipids_class_tx, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(aes(), width = 0.2) +
+  theme_classic() +
+  labs(title = "lipids_class_tx") +
+  xlab(" ") + ylab("Gini Score") +
+  theme(text = element_text(size = 15))  +
+  coord_flip() 
+
+write.csv(importance_feces_week_lipids_class_tx_wild_type_week3_df, 
+               file ="./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_lipids_class_tx_RF_week_wild_type_week3.csv")
+
+ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/importance_plot_lipids_class_tx_RF_week_wild_type_week3.png',width=8, height=5, p_importance_feces_week_lipids_class_tx_wild_type_week3)
+```
+
+ROC curve
+```{r}
+pred1_lipids_class_tx_wild_type_week3_feces_week=predict(class_txifier_feces_week_lipids_class_tx_wild_type_week3_for_RF,type = "prob")
+
+perf_lipids_class_tx_wild_type_week3_feces_week = prediction(pred1_lipids_class_tx_wild_type_week3_feces_week [,2], list(train_feces_lipids_class_tx_wild_type_week3_for_RF$X60))
+# 1. Area under curve
+auc_lipids_class_tx_wild_type_week3_feces_week = performance(perf_lipids_class_tx_wild_type_week3_feces_week, "auc")
+
+# 2. True Positive and Negative Rate
+pred3_lipids_class_tx_wild_type_week3_feces_week = performance(perf_lipids_class_tx_wild_type_week3_feces_week, "tpr","fpr")
+# 3. Plot the ROC curve
+c4_feces_week_ROC <- plot(pred3_lipids_class_tx_wild_type_week3_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+c4_feces_week_ROC
+
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+jpeg('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/RF_ROC_lipids_class_tx_wild_type_week3_feces_week.jpg')
+plot(pred3_lipids_class_tx_wild_type_week3_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+dev.off()
+
+#How does it do on test set?
+# Predicting the Test set results
+y_pred_lipids_class_tx_wild_type_week3_feces_week = predict(class_txifier_feces_week_lipids_class_tx_wild_type_week3_for_RF, newdata = test_feces_lipids_class_tx_wild_type_week3_for_RF[-collength_feces_lipids_class_tx_wild_type_week3])
+
+confusion_mtx_lipids_class_tx_wild_type_week3_feces_week = table(test_feces_lipids_class_tx_wild_type_week3_for_RF[, collength_feces_lipids_class_tx_wild_type_week3], 
+                                        y_pred_lipids_class_tx_wild_type_week3_feces_week)
+confusion_mtx_lipids_class_tx_wild_type_week3_feces_week
+```
+
+#### lipids_class_tx week10_mutant
+Need samples as columns and features as rows in a data frame
+```{r}
+#Add sex as a row:
+feces_lipids_class_tx_mutant_week10_week <- rbind(feces_lipids_class_tx_mutant_week10, feces_map_metabolites[feces_map_metabolites$Genotype=="Mutant" & feces_map_metabolites$Week=="3" ,]$Sex)
+
+collength_feces_lipids_class_tx_mutant_week10 <- length(rownames(feces_lipids_class_tx_mutant_week10_week))
+
+split_feces_lipids_class_tx_mutant_week10_for_RF <- sample.split(feces_lipids_class_tx_mutant_week10_week, SplitRatio = 0.7)
+str(split_feces_lipids_class_tx_mutant_week10_for_RF)
+
+#Set train and test sample sets
+train_feces_lipids_class_tx_mutant_week10_for_RF <- data.frame(subset(t(feces_lipids_class_tx_mutant_week10_week), split_feces_lipids_class_tx_mutant_week10_for_RF == "TRUE"))
+
+
+test_feces_lipids_class_tx_mutant_week10_for_RF <- data.frame(subset(t(feces_lipids_class_tx_mutant_week10_week), split_feces_lipids_class_tx_mutant_week10_for_RF == "FALSE"))
+dim(train_feces_lipids_class_tx_mutant_week10_for_RF)
+dim(test_feces_lipids_class_tx_mutant_week10_for_RF)
+```
+Train
+```{r}
+set.seed(120)  # Setting seed
+
+
+class_txifier_feces_week_lipids_class_tx_mutant_week10_for_RF = randomForest(x = train_feces_lipids_class_tx_mutant_week10_for_RF[-collength_feces_lipids_class_tx_mutant_week10],
+                          y = factor(train_feces_lipids_class_tx_mutant_week10_for_RF$X60),
+                             ntree = 500)
+
+capture.output(class_txifier_feces_week_lipids_class_tx_mutant_week10_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_lipids_class_tx_mutant_week10.csv')
+```
+
+```{r}
+plot(class_txifier_feces_week_lipids_class_tx_mutant_week10_for_RF)
+
+# Importance list
+importance_feces_week_lipids_class_tx_mutant_week10<-importance(class_txifier_feces_week_lipids_class_tx_mutant_week10_for_RF)
+  
+# Variable importance plot
+ varImpPlot(class_txifier_feces_week_lipids_class_tx_mutant_week10_for_RF, main = "lipids_class_tx Importance in class_txifying Week Clusters")
+
+
+#Graph the important features
+
+importance_feces_week_lipids_class_tx_mutant_week10_df <- data.frame(importance_feces_week_lipids_class_tx_mutant_week10)
+
+importance_feces_week_lipids_class_tx_mutant_week10_df 
+
+importance_feces_week_lipids_class_tx_mutant_week10_df  <- importance_feces_week_lipids_class_tx_mutant_week10_df  %>%
+  arrange(desc(MeanDecreaseGini)) 
+importance_feces_week_lipids_class_tx_mutant_week10_df    
+
+importance_feces_week_lipids_class_tx_mutant_week10_top_20_df <-head(importance_feces_week_lipids_class_tx_mutant_week10_df, 20)
+importance_feces_week_lipids_class_tx_mutant_week10_top_20_df$lipids_class_tx <- rownames(importance_feces_week_lipids_class_tx_mutant_week10_top_20_df)
+```
+Graph the gini importance for top 15
+```{r}
+p_importance_feces_week_lipids_class_tx_mutant_week10 <- ggplot(
+  data = importance_feces_week_lipids_class_tx_mutant_week10_top_20_df, 
+  aes(x = reorder(lipids_class_tx, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(aes(), width = 0.2) +
+  theme_classic() +
+  labs(title = "lipids_class_tx") +
+  xlab(" ") + ylab("Gini Score") +
+  theme(text = element_text(size = 15))  +
+  coord_flip() 
+
+write.csv(importance_feces_week_lipids_class_tx_mutant_week10_df, 
+               file ="./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_lipids_class_tx_RF_week_mutant_week10.csv")
+
+ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/importance_plot_lipids_class_tx_RF_week_mutant_week10.png',width=8, height=5, p_importance_feces_week_lipids_class_tx_mutant_week10)
+```
+
+ROC curve
+```{r}
+pred1_lipids_class_tx_mutant_week10_feces_week=predict(class_txifier_feces_week_lipids_class_tx_mutant_week10_for_RF,type = "prob")
+
+perf_lipids_class_tx_mutant_week10_feces_week = prediction(pred1_lipids_class_tx_mutant_week10_feces_week [,2], list(train_feces_lipids_class_tx_mutant_week10_for_RF$X60))
+# 1. Area under curve
+auc_lipids_class_tx_mutant_week10_feces_week = performance(perf_lipids_class_tx_mutant_week10_feces_week, "auc")
+
+# 2. True Positive and Negative Rate
+pred3_lipids_class_tx_mutant_week10_feces_week = performance(perf_lipids_class_tx_mutant_week10_feces_week, "tpr","fpr")
+# 3. Plot the ROC curve
+c4_feces_week_ROC <- plot(pred3_lipids_class_tx_mutant_week10_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+c4_feces_week_ROC
+
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+jpeg('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/RF_ROC_lipids_class_tx_mutant_week10_feces_week.jpg')
+plot(pred3_lipids_class_tx_mutant_week10_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+dev.off()
+
+#How does it do on test set?
+# Predicting the Test set results
+y_pred_lipids_class_tx_mutant_week10_feces_week = predict(class_txifier_feces_week_lipids_class_tx_mutant_week10_for_RF, newdata = test_feces_lipids_class_tx_mutant_week10_for_RF[-collength_feces_lipids_class_tx_mutant_week10])
+
+confusion_mtx_lipids_class_tx_mutant_week10_feces_week = table(test_feces_lipids_class_tx_mutant_week10_for_RF[, collength_feces_lipids_class_tx_mutant_week10], 
+                                        y_pred_lipids_class_tx_mutant_week10_feces_week)
+confusion_mtx_lipids_class_tx_mutant_week10_feces_week
+```
+
+
+#### lipids class_tx week 3 wild_type
+Need samples as columns and features as rows in a data frame
+```{r}
+#Add sex as a row:
+feces_lipids_class_tx_wild_type_week10_week <- rbind(feces_lipids_class_tx_wild_type_week10, feces_map_metabolites[feces_map_metabolites$Genotype=="Wild_Type" & feces_map_metabolites$Week=="3" ,]$Sex)
+
+collength_feces_lipids_class_tx_wild_type_week10 <- length(rownames(feces_lipids_class_tx_wild_type_week10_week))
+
+split_feces_lipids_class_tx_wild_type_week10_for_RF <- sample.split(feces_lipids_class_tx_wild_type_week10_week, SplitRatio = 0.7)
+str(split_feces_lipids_class_tx_wild_type_week10_for_RF)
+
+#Set train and test sample sets
+train_feces_lipids_class_tx_wild_type_week10_for_RF <- data.frame(subset(t(feces_lipids_class_tx_wild_type_week10_week), split_feces_lipids_class_tx_wild_type_week10_for_RF == "TRUE"))
+
+
+test_feces_lipids_class_tx_wild_type_week10_for_RF <- data.frame(subset(t(feces_lipids_class_tx_wild_type_week10_week), split_feces_lipids_class_tx_wild_type_week10_for_RF == "FALSE"))
+dim(train_feces_lipids_class_tx_wild_type_week10_for_RF)
+dim(test_feces_lipids_class_tx_wild_type_week10_for_RF)
+```
+Train
+```{r}
+set.seed(120)  # Setting seed
+
+
+class_txifier_feces_week_lipids_class_tx_wild_type_week10_for_RF = randomForest(x = train_feces_lipids_class_tx_wild_type_week10_for_RF[-collength_feces_lipids_class_tx_wild_type_week10],
+                          y = factor(train_feces_lipids_class_tx_wild_type_week10_for_RF$X60),
+                             ntree = 500)
+
+capture.output(class_txifier_feces_week_lipids_class_tx_wild_type_week10_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_lipids_class_tx_wild_type_week10.csv')
+```
+
+```{r}
+plot(class_txifier_feces_week_lipids_class_tx_wild_type_week10_for_RF)
+
+# Importance list
+importance_feces_week_lipids_class_tx_wild_type_week10<-importance(class_txifier_feces_week_lipids_class_tx_wild_type_week10_for_RF)
+  
+# Variable importance plot
+ varImpPlot(class_txifier_feces_week_lipids_class_tx_wild_type_week10_for_RF, main = "lipids_class_tx Importance in class_txifying Week Clusters")
+
+
+#Graph the important features
+
+importance_feces_week_lipids_class_tx_wild_type_week10_df <- data.frame(importance_feces_week_lipids_class_tx_wild_type_week10)
+
+importance_feces_week_lipids_class_tx_wild_type_week10_df 
+
+importance_feces_week_lipids_class_tx_wild_type_week10_df  <- importance_feces_week_lipids_class_tx_wild_type_week10_df  %>%
+  arrange(desc(MeanDecreaseGini)) 
+importance_feces_week_lipids_class_tx_wild_type_week10_df    
+
+importance_feces_week_lipids_class_tx_wild_type_week10_top_20_df <-head(importance_feces_week_lipids_class_tx_wild_type_week10_df, 20)
+importance_feces_week_lipids_class_tx_wild_type_week10_top_20_df$lipids_class_tx <- rownames(importance_feces_week_lipids_class_tx_wild_type_week10_top_20_df)
+```
+Graph the gini importance for top 15
+```{r}
+p_importance_feces_week_lipids_class_tx_wild_type_week10 <- ggplot(
+  data = importance_feces_week_lipids_class_tx_wild_type_week10_top_20_df, 
+  aes(x = reorder(lipids_class_tx, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(aes(), width = 0.2) +
+  theme_classic() +
+  labs(title = "lipids_class_tx") +
+  xlab(" ") + ylab("Gini Score") +
+  theme(text = element_text(size = 15))  +
+  coord_flip() 
+
+write.csv(importance_feces_week_lipids_class_tx_wild_type_week10_df, 
+               file ="./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_lipids_class_tx_RF_week_wild_type_week10.csv")
+
+ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/importance_plot_lipids_class_tx_RF_week_wild_type_week10.png',width=8, height=5, p_importance_feces_week_lipids_class_tx_wild_type_week10)
+```
+
+ROC curve
+```{r}
+pred1_lipids_class_tx_wild_type_week10_feces_week=predict(class_txifier_feces_week_lipids_class_tx_wild_type_week10_for_RF,type = "prob")
+
+perf_lipids_class_tx_wild_type_week10_feces_week = prediction(pred1_lipids_class_tx_wild_type_week10_feces_week [,2], list(train_feces_lipids_class_tx_wild_type_week10_for_RF$X60))
+# 1. Area under curve
+auc_lipids_class_tx_wild_type_week10_feces_week = performance(perf_lipids_class_tx_wild_type_week10_feces_week, "auc")
+
+# 2. True Positive and Negative Rate
+pred3_lipids_class_tx_wild_type_week10_feces_week = performance(perf_lipids_class_tx_wild_type_week10_feces_week, "tpr","fpr")
+# 3. Plot the ROC curve
+c4_feces_week_ROC <- plot(pred3_lipids_class_tx_wild_type_week10_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+c4_feces_week_ROC
+
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+jpeg('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/RF_ROC_lipids_class_tx_wild_type_week10_feces_week.jpg')
+plot(pred3_lipids_class_tx_wild_type_week10_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+dev.off()
+
+#How does it do on test set?
+# Predicting the Test set results
+y_pred_lipids_class_tx_wild_type_week10_feces_week = predict(class_txifier_feces_week_lipids_class_tx_wild_type_week10_for_RF, newdata = test_feces_lipids_class_tx_wild_type_week10_for_RF[-collength_feces_lipids_class_tx_wild_type_week10])
+
+confusion_mtx_lipids_class_tx_wild_type_week10_feces_week = table(test_feces_lipids_class_tx_wild_type_week10_for_RF[, collength_feces_lipids_class_tx_wild_type_week10], 
+                                        y_pred_lipids_class_tx_wild_type_week10_feces_week)
+confusion_mtx_lipids_class_tx_wild_type_week10_feces_week
+```
+
+
+
+
+
+###amines
+#### split transformed data into sections 
+```{r}
+#Split by group
+feces_amines_class_tx_mutant_week3 <-  filter(feces_amines_class_class_tx %>% select(any_of(feces_week3_cols_list)) %>% select(any_of(feces_mutant_cols_list))) 
+dim(feces_amines_class_tx_mutant_week3 )
+
+feces_amines_class_tx_wild_type_week3 <-  filter(feces_amines_class_class_tx %>% select(any_of(feces_week3_cols_list)) %>% select(any_of(feces_wild_type_cols_list))) 
+dim(feces_amines_class_tx_wild_type_week3 )
+
+feces_amines_class_tx_mutant_week10 <-  filter(feces_amines_class_class_tx %>% select(any_of(feces_week10_cols_list)) %>% select(any_of(feces_mutant_cols_list))) 
+dim(feces_amines_class_tx_mutant_week10 )
+
+feces_amines_class_tx_wild_type_week10 <-  filter(feces_amines_class_class_tx %>% select(any_of(feces_week10_cols_list)) %>% select(any_of(feces_wild_type_cols_list))) 
+dim(feces_amines_class_tx_wild_type_week10 )
+```
+
+#### amines_class_tx week3_mutant
+Need samples as columns and features as rows in a data frame
+```{r}
+#Add sex as a row:
+feces_amines_class_tx_mutant_week3_week <- rbind(feces_amines_class_tx_mutant_week3, feces_map_metabolites[feces_map_metabolites$Genotype=="Mutant" & feces_map_metabolites$Week=="3",]$Sex)
+
+collength_feces_amines_class_tx_mutant_week3 <- length(rownames(feces_amines_class_tx_mutant_week3_week))
+
+split_feces_amines_class_tx_mutant_week3_for_RF <- sample.split(feces_amines_class_tx_mutant_week3_week, SplitRatio = 0.7)
+str(split_feces_amines_class_tx_mutant_week3_for_RF)
+
+#Set train and test sample sets
+train_feces_amines_class_tx_mutant_week3_for_RF <- data.frame(subset(t(feces_amines_class_tx_mutant_week3_week), split_feces_amines_class_tx_mutant_week3_for_RF == "TRUE"))
+
+
+test_feces_amines_class_tx_mutant_week3_for_RF <- data.frame(subset(t(feces_amines_class_tx_mutant_week3_week), split_feces_amines_class_tx_mutant_week3_for_RF == "FALSE"))
+dim(train_feces_amines_class_tx_mutant_week3_for_RF)
+dim(test_feces_amines_class_tx_mutant_week3_for_RF)
+```
+Train
+```{r}
+set.seed(120)  # Setting seed
+
+class_txifier_feces_week_amines_class_tx_mutant_week3_for_RF = randomForest(x = train_feces_amines_class_tx_mutant_week3_for_RF[-collength_feces_amines_class_tx_mutant_week3],
+                          y = factor(train_feces_amines_class_tx_mutant_week3_for_RF$X119),
+                             ntree = 500)
+
+capture.output(class_txifier_feces_week_amines_class_tx_mutant_week3_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_amines_class_tx_mutant_week3.csv')
+```
+
+```{r}
+plot(class_txifier_feces_week_amines_class_tx_mutant_week3_for_RF)
+
+# Importance list
+importance_feces_week_amines_class_tx_mutant_week3<-importance(class_txifier_feces_week_amines_class_tx_mutant_week3_for_RF)
+  
+# Variable importance plot
+ varImpPlot(class_txifier_feces_week_amines_class_tx_mutant_week3_for_RF, main = "amines_class_tx Importance in class_txifying Week Clusters")
+
+
+#Graph the important features
+
+importance_feces_week_amines_class_tx_mutant_week3_df <- data.frame(importance_feces_week_amines_class_tx_mutant_week3)
+
+importance_feces_week_amines_class_tx_mutant_week3_df 
+
+importance_feces_week_amines_class_tx_mutant_week3_df  <- importance_feces_week_amines_class_tx_mutant_week3_df  %>%
+  arrange(desc(MeanDecreaseGini)) 
+importance_feces_week_amines_class_tx_mutant_week3_df    
+
+importance_feces_week_amines_class_tx_mutant_week3_top_20_df <-head(importance_feces_week_amines_class_tx_mutant_week3_df, 20)
+importance_feces_week_amines_class_tx_mutant_week3_top_20_df$amines_class_tx <- rownames(importance_feces_week_amines_class_tx_mutant_week3_top_20_df)
+
+#Graph the gini importance for top 15
+
+p_importance_feces_week_amines_class_tx_mutant_week3 <- ggplot(
+  data = importance_feces_week_amines_class_tx_mutant_week3_top_20_df, 
+  aes(x = reorder(amines_class_tx, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(aes(), width = 0.2) +
+  theme_classic() +
+  labs(title = "amines_class_tx") +
+  xlab(" ") + ylab("Gini Score") +
+  theme(text = element_text(size = 15))  +
+  coord_flip() 
+
+write.csv(importance_feces_week_amines_class_tx_mutant_week3_df, 
+               file ="./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_amines_class_tx_RF_week_mutant_week3.csv")
+
+ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/importance_plot_amines_class_tx_RF_week_mutant_week3.png',width=8, height=5, p_importance_feces_week_amines_class_tx_mutant_week3)
+
+#ROC curve
+pred1_amines_class_tx_mutant_week3_feces_week=predict(class_txifier_feces_week_amines_class_tx_mutant_week3_for_RF,type = "prob")
+
+perf_amines_class_tx_mutant_week3_feces_week = prediction(pred1_amines_class_tx_mutant_week3_feces_week [,2], list(train_feces_amines_class_tx_mutant_week3_for_RF$X119))
+# 1. Area under curve
+auc_amines_class_tx_mutant_week3_feces_week = performance(perf_amines_class_tx_mutant_week3_feces_week, "auc")
+
+# 2. True Positive and Negative Rate
+pred3_amines_class_tx_mutant_week3_feces_week = performance(perf_amines_class_tx_mutant_week3_feces_week, "tpr","fpr")
+# 3. Plot the ROC curve
+c4_feces_week_ROC <- plot(pred3_amines_class_tx_mutant_week3_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+c4_feces_week_ROC
+
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+jpeg('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/RF_ROC_amines_class_tx_mutant_week3_feces_week.jpg')
+plot(pred3_amines_class_tx_mutant_week3_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+dev.off()
+
+#How does it do on test set?
+# Predicting the Test set results
+y_pred_amines_class_tx_mutant_week3_feces_week = predict(class_txifier_feces_week_amines_class_tx_mutant_week3_for_RF, newdata = test_feces_amines_class_tx_mutant_week3_for_RF[-collength_feces_amines_class_tx_mutant_week3])
+
+confusion_mtx_amines_class_tx_mutant_week3_feces_week = table(test_feces_amines_class_tx_mutant_week3_for_RF[, collength_feces_amines_class_tx_mutant_week3], 
+                                        y_pred_amines_class_tx_mutant_week3_feces_week)
+confusion_mtx_amines_class_tx_mutant_week3_feces_week
+```
+
+
+#### amines class_tx week 3 wild_type
+Need samples as columns and features as rows in a data frame
+```{r}
+#Add sex as a row:
+feces_amines_class_tx_wild_type_week3_week <- rbind(feces_amines_class_tx_wild_type_week3, feces_map_metabolites[feces_map_metabolites$Genotype=="Wild_Type" & feces_map_metabolites$Week=="3" ,]$Sex)
+
+collength_feces_amines_class_tx_wild_type_week3 <- length(rownames(feces_amines_class_tx_wild_type_week3_week))
+
+split_feces_amines_class_tx_wild_type_week3_for_RF <- sample.split(feces_amines_class_tx_wild_type_week3_week, SplitRatio = 0.7)
+str(split_feces_amines_class_tx_wild_type_week3_for_RF)
+
+#Set train and test sample sets
+train_feces_amines_class_tx_wild_type_week3_for_RF <- data.frame(subset(t(feces_amines_class_tx_wild_type_week3_week), split_feces_amines_class_tx_wild_type_week3_for_RF == "TRUE"))
+
+
+test_feces_amines_class_tx_wild_type_week3_for_RF <- data.frame(subset(t(feces_amines_class_tx_wild_type_week3_week), split_feces_amines_class_tx_wild_type_week3_for_RF == "FALSE"))
+dim(train_feces_amines_class_tx_wild_type_week3_for_RF)
+dim(test_feces_amines_class_tx_wild_type_week3_for_RF)
+```
+Train
+```{r}
+set.seed(120)  # Setting seed
+
+
+class_txifier_feces_week_amines_class_tx_wild_type_week3_for_RF = randomForest(x = train_feces_amines_class_tx_wild_type_week3_for_RF[-collength_feces_amines_class_tx_wild_type_week3],
+                          y = factor(train_feces_amines_class_tx_wild_type_week3_for_RF$X119),
+                             ntree = 500)
+
+capture.output(class_txifier_feces_week_amines_class_tx_wild_type_week3_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_amines_class_tx_wild_type_week3.csv')
+```
+
+```{r}
+plot(class_txifier_feces_week_amines_class_tx_wild_type_week3_for_RF)
+
+# Importance list
+importance_feces_week_amines_class_tx_wild_type_week3<-importance(class_txifier_feces_week_amines_class_tx_wild_type_week3_for_RF)
+  
+# Variable importance plot
+ varImpPlot(class_txifier_feces_week_amines_class_tx_wild_type_week3_for_RF, main = "amines_class_tx Importance in class_txifying Week Clusters")
+
+
+#Graph the important features
+
+importance_feces_week_amines_class_tx_wild_type_week3_df <- data.frame(importance_feces_week_amines_class_tx_wild_type_week3)
+
+importance_feces_week_amines_class_tx_wild_type_week3_df 
+
+importance_feces_week_amines_class_tx_wild_type_week3_df  <- importance_feces_week_amines_class_tx_wild_type_week3_df  %>%
+  arrange(desc(MeanDecreaseGini)) 
+importance_feces_week_amines_class_tx_wild_type_week3_df    
+
+importance_feces_week_amines_class_tx_wild_type_week3_top_20_df <-head(importance_feces_week_amines_class_tx_wild_type_week3_df, 20)
+importance_feces_week_amines_class_tx_wild_type_week3_top_20_df$amines_class_tx <- rownames(importance_feces_week_amines_class_tx_wild_type_week3_top_20_df)
+```
+Graph the gini importance for top 15
+```{r}
+p_importance_feces_week_amines_class_tx_wild_type_week3 <- ggplot(
+  data = importance_feces_week_amines_class_tx_wild_type_week3_top_20_df, 
+  aes(x = reorder(amines_class_tx, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(aes(), width = 0.2) +
+  theme_classic() +
+  labs(title = "amines_class_tx") +
+  xlab(" ") + ylab("Gini Score") +
+  theme(text = element_text(size = 15))  +
+  coord_flip() 
+
+write.csv(importance_feces_week_amines_class_tx_wild_type_week3_df, 
+               file ="./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_amines_class_tx_RF_week_wild_type_week3.csv")
+
+ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/importance_plot_amines_class_tx_RF_week_wild_type_week3.png',width=8, height=5, p_importance_feces_week_amines_class_tx_wild_type_week3)
+```
+
+ROC curve
+```{r}
+pred1_amines_class_tx_wild_type_week3_feces_week=predict(class_txifier_feces_week_amines_class_tx_wild_type_week3_for_RF,type = "prob")
+
+perf_amines_class_tx_wild_type_week3_feces_week = prediction(pred1_amines_class_tx_wild_type_week3_feces_week [,2], list(train_feces_amines_class_tx_wild_type_week3_for_RF$X119))
+# 1. Area under curve
+auc_amines_class_tx_wild_type_week3_feces_week = performance(perf_amines_class_tx_wild_type_week3_feces_week, "auc")
+
+# 2. True Positive and Negative Rate
+pred3_amines_class_tx_wild_type_week3_feces_week = performance(perf_amines_class_tx_wild_type_week3_feces_week, "tpr","fpr")
+# 3. Plot the ROC curve
+c4_feces_week_ROC <- plot(pred3_amines_class_tx_wild_type_week3_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+c4_feces_week_ROC
+
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+jpeg('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/RF_ROC_amines_class_tx_wild_type_week3_feces_week.jpg')
+plot(pred3_amines_class_tx_wild_type_week3_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+dev.off()
+
+#How does it do on test set?
+# Predicting the Test set results
+y_pred_amines_class_tx_wild_type_week3_feces_week = predict(class_txifier_feces_week_amines_class_tx_wild_type_week3_for_RF, newdata = test_feces_amines_class_tx_wild_type_week3_for_RF[-collength_feces_amines_class_tx_wild_type_week3])
+
+confusion_mtx_amines_class_tx_wild_type_week3_feces_week = table(test_feces_amines_class_tx_wild_type_week3_for_RF[, collength_feces_amines_class_tx_wild_type_week3], 
+                                        y_pred_amines_class_tx_wild_type_week3_feces_week)
+confusion_mtx_amines_class_tx_wild_type_week3_feces_week
+```
+
+#### amines_class_tx week10_mutant
+Need samples as columns and features as rows in a data frame
+```{r}
+#Add sex as a row:
+feces_amines_class_tx_mutant_week10_week <- rbind(feces_amines_class_tx_mutant_week10, feces_map_metabolites[feces_map_metabolites$Genotype=="Mutant" & feces_map_metabolites$Week=="3" ,]$Sex)
+
+collength_feces_amines_class_tx_mutant_week10 <- length(rownames(feces_amines_class_tx_mutant_week10_week))
+
+split_feces_amines_class_tx_mutant_week10_for_RF <- sample.split(feces_amines_class_tx_mutant_week10_week, SplitRatio = 0.7)
+str(split_feces_amines_class_tx_mutant_week10_for_RF)
+
+#Set train and test sample sets
+train_feces_amines_class_tx_mutant_week10_for_RF <- data.frame(subset(t(feces_amines_class_tx_mutant_week10_week), split_feces_amines_class_tx_mutant_week10_for_RF == "TRUE"))
+
+
+test_feces_amines_class_tx_mutant_week10_for_RF <- data.frame(subset(t(feces_amines_class_tx_mutant_week10_week), split_feces_amines_class_tx_mutant_week10_for_RF == "FALSE"))
+dim(train_feces_amines_class_tx_mutant_week10_for_RF)
+dim(test_feces_amines_class_tx_mutant_week10_for_RF)
+```
+Train
+```{r}
+set.seed(120)  # Setting seed
+
+
+class_txifier_feces_week_amines_class_tx_mutant_week10_for_RF = randomForest(x = train_feces_amines_class_tx_mutant_week10_for_RF[-collength_feces_amines_class_tx_mutant_week10],
+                          y = factor(train_feces_amines_class_tx_mutant_week10_for_RF$X119),
+                             ntree = 500)
+
+capture.output(class_txifier_feces_week_amines_class_tx_mutant_week10_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_amines_class_tx_mutant_week10.csv')
+```
+
+```{r}
+plot(class_txifier_feces_week_amines_class_tx_mutant_week10_for_RF)
+
+# Importance list
+importance_feces_week_amines_class_tx_mutant_week10<-importance(class_txifier_feces_week_amines_class_tx_mutant_week10_for_RF)
+  
+# Variable importance plot
+ varImpPlot(class_txifier_feces_week_amines_class_tx_mutant_week10_for_RF, main = "amines_class_tx Importance in class_txifying Week Clusters")
+
+
+#Graph the important features
+
+importance_feces_week_amines_class_tx_mutant_week10_df <- data.frame(importance_feces_week_amines_class_tx_mutant_week10)
+
+importance_feces_week_amines_class_tx_mutant_week10_df 
+
+importance_feces_week_amines_class_tx_mutant_week10_df  <- importance_feces_week_amines_class_tx_mutant_week10_df  %>%
+  arrange(desc(MeanDecreaseGini)) 
+importance_feces_week_amines_class_tx_mutant_week10_df    
+
+importance_feces_week_amines_class_tx_mutant_week10_top_20_df <-head(importance_feces_week_amines_class_tx_mutant_week10_df, 20)
+importance_feces_week_amines_class_tx_mutant_week10_top_20_df$amines_class_tx <- rownames(importance_feces_week_amines_class_tx_mutant_week10_top_20_df)
+```
+Graph the gini importance for top 15
+```{r}
+p_importance_feces_week_amines_class_tx_mutant_week10 <- ggplot(
+  data = importance_feces_week_amines_class_tx_mutant_week10_top_20_df, 
+  aes(x = reorder(amines_class_tx, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(aes(), width = 0.2) +
+  theme_classic() +
+  labs(title = "amines_class_tx") +
+  xlab(" ") + ylab("Gini Score") +
+  theme(text = element_text(size = 15))  +
+  coord_flip() 
+
+write.csv(importance_feces_week_amines_class_tx_mutant_week10_df, 
+               file ="./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_amines_class_tx_RF_week_mutant_week10.csv")
+
+ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/importance_plot_amines_class_tx_RF_week_mutant_week10.png',width=8, height=5, p_importance_feces_week_amines_class_tx_mutant_week10)
+```
+
+ROC curve
+```{r}
+pred1_amines_class_tx_mutant_week10_feces_week=predict(class_txifier_feces_week_amines_class_tx_mutant_week10_for_RF,type = "prob")
+
+perf_amines_class_tx_mutant_week10_feces_week = prediction(pred1_amines_class_tx_mutant_week10_feces_week [,2], list(train_feces_amines_class_tx_mutant_week10_for_RF$X119))
+# 1. Area under curve
+auc_amines_class_tx_mutant_week10_feces_week = performance(perf_amines_class_tx_mutant_week10_feces_week, "auc")
+
+# 2. True Positive and Negative Rate
+pred3_amines_class_tx_mutant_week10_feces_week = performance(perf_amines_class_tx_mutant_week10_feces_week, "tpr","fpr")
+# 3. Plot the ROC curve
+c4_feces_week_ROC <- plot(pred3_amines_class_tx_mutant_week10_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+c4_feces_week_ROC
+
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+jpeg('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/RF_ROC_amines_class_tx_mutant_week10_feces_week.jpg')
+plot(pred3_amines_class_tx_mutant_week10_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+dev.off()
+
+#How does it do on test set?
+# Predicting the Test set results
+y_pred_amines_class_tx_mutant_week10_feces_week = predict(class_txifier_feces_week_amines_class_tx_mutant_week10_for_RF, newdata = test_feces_amines_class_tx_mutant_week10_for_RF[-collength_feces_amines_class_tx_mutant_week10])
+
+confusion_mtx_amines_class_tx_mutant_week10_feces_week = table(test_feces_amines_class_tx_mutant_week10_for_RF[, collength_feces_amines_class_tx_mutant_week10], 
+                                        y_pred_amines_class_tx_mutant_week10_feces_week)
+confusion_mtx_amines_class_tx_mutant_week10_feces_week
+```
+
+
+#### amines class_tx week 3 wild_type
+Need samples as columns and features as rows in a data frame
+```{r}
+#Add sex as a row:
+feces_amines_class_tx_wild_type_week10_week <- rbind(feces_amines_class_tx_wild_type_week10, feces_map_metabolites[feces_map_metabolites$Genotype=="Wild_Type" & feces_map_metabolites$Week=="3" ,]$Sex)
+
+collength_feces_amines_class_tx_wild_type_week10 <- length(rownames(feces_amines_class_tx_wild_type_week10_week))
+
+split_feces_amines_class_tx_wild_type_week10_for_RF <- sample.split(feces_amines_class_tx_wild_type_week10_week, SplitRatio = 0.7)
+str(split_feces_amines_class_tx_wild_type_week10_for_RF)
+
+#Set train and test sample sets
+train_feces_amines_class_tx_wild_type_week10_for_RF <- data.frame(subset(t(feces_amines_class_tx_wild_type_week10_week), split_feces_amines_class_tx_wild_type_week10_for_RF == "TRUE"))
+
+
+test_feces_amines_class_tx_wild_type_week10_for_RF <- data.frame(subset(t(feces_amines_class_tx_wild_type_week10_week), split_feces_amines_class_tx_wild_type_week10_for_RF == "FALSE"))
+dim(train_feces_amines_class_tx_wild_type_week10_for_RF)
+dim(test_feces_amines_class_tx_wild_type_week10_for_RF)
+```
+Train
+```{r}
+set.seed(120)  # Setting seed
+
+
+class_txifier_feces_week_amines_class_tx_wild_type_week10_for_RF = randomForest(x = train_feces_amines_class_tx_wild_type_week10_for_RF[-collength_feces_amines_class_tx_wild_type_week10],
+                          y = factor(train_feces_amines_class_tx_wild_type_week10_for_RF$X119),
+                             ntree = 500)
+
+capture.output(class_txifier_feces_week_amines_class_tx_wild_type_week10_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_amines_class_tx_wild_type_week10.csv')
+```
+
+```{r}
+plot(class_txifier_feces_week_amines_class_tx_wild_type_week10_for_RF)
+
+# Importance list
+importance_feces_week_amines_class_tx_wild_type_week10<-importance(class_txifier_feces_week_amines_class_tx_wild_type_week10_for_RF)
+  
+# Variable importance plot
+ varImpPlot(class_txifier_feces_week_amines_class_tx_wild_type_week10_for_RF, main = "amines_class_tx Importance in class_txifying Week Clusters")
+
+
+#Graph the important features
+
+importance_feces_week_amines_class_tx_wild_type_week10_df <- data.frame(importance_feces_week_amines_class_tx_wild_type_week10)
+
+importance_feces_week_amines_class_tx_wild_type_week10_df 
+
+importance_feces_week_amines_class_tx_wild_type_week10_df  <- importance_feces_week_amines_class_tx_wild_type_week10_df  %>%
+  arrange(desc(MeanDecreaseGini)) 
+importance_feces_week_amines_class_tx_wild_type_week10_df    
+
+importance_feces_week_amines_class_tx_wild_type_week10_top_20_df <-head(importance_feces_week_amines_class_tx_wild_type_week10_df, 20)
+importance_feces_week_amines_class_tx_wild_type_week10_top_20_df$amines_class_tx <- rownames(importance_feces_week_amines_class_tx_wild_type_week10_top_20_df)
+```
+Graph the gini importance for top 15
+```{r}
+p_importance_feces_week_amines_class_tx_wild_type_week10 <- ggplot(
+  data = importance_feces_week_amines_class_tx_wild_type_week10_top_20_df, 
+  aes(x = reorder(amines_class_tx, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(aes(), width = 0.2) +
+  theme_classic() +
+  labs(title = "amines_class_tx") +
+  xlab(" ") + ylab("Gini Score") +
+  theme(text = element_text(size = 15))  +
+  coord_flip() 
+
+write.csv(importance_feces_week_amines_class_tx_wild_type_week10_df, 
+               file ="./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_amines_class_tx_RF_week_wild_type_week10.csv")
+
+ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/importance_plot_amines_class_tx_RF_week_wild_type_week10.png',width=8, height=5, p_importance_feces_week_amines_class_tx_wild_type_week10)
+```
+
+ROC curve
+```{r}
+pred1_amines_class_tx_wild_type_week10_feces_week=predict(class_txifier_feces_week_amines_class_tx_wild_type_week10_for_RF,type = "prob")
+
+perf_amines_class_tx_wild_type_week10_feces_week = prediction(pred1_amines_class_tx_wild_type_week10_feces_week [,2], list(train_feces_amines_class_tx_wild_type_week10_for_RF$X119))
+# 1. Area under curve
+auc_amines_class_tx_wild_type_week10_feces_week = performance(perf_amines_class_tx_wild_type_week10_feces_week, "auc")
+
+# 2. True Positive and Negative Rate
+pred3_amines_class_tx_wild_type_week10_feces_week = performance(perf_amines_class_tx_wild_type_week10_feces_week, "tpr","fpr")
+# 3. Plot the ROC curve
+c4_feces_week_ROC <- plot(pred3_amines_class_tx_wild_type_week10_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+c4_feces_week_ROC
+
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+jpeg('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/RF_ROC_amines_class_tx_wild_type_week10_feces_week.jpg')
+plot(pred3_amines_class_tx_wild_type_week10_feces_week, main="ROC Curve for Random Forest",col=2,lwd=2)
+dev.off()
+
+#How does it do on test set?
+# Predicting the Test set results
+y_pred_amines_class_tx_wild_type_week10_feces_week = predict(class_txifier_feces_week_amines_class_tx_wild_type_week10_for_RF, newdata = test_feces_amines_class_tx_wild_type_week10_for_RF[-collength_feces_amines_class_tx_wild_type_week10])
+
+confusion_mtx_amines_class_tx_wild_type_week10_feces_week = table(test_feces_amines_class_tx_wild_type_week10_for_RF[, collength_feces_amines_class_tx_wild_type_week10], 
+                                        y_pred_amines_class_tx_wild_type_week10_feces_week)
+confusion_mtx_amines_class_tx_wild_type_week10_feces_week
+```
+
+
+
+
+
+
+
+
+
+
+# Metabolites Abundances for RF-ID'd sex difference metabolites
+## amines
+
+```{r}
+#amines_important_sex_diff_class_wild_type <- read.csv("./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_amines_class_tx_RF_week_wild_type_week10.csv", header = TRUE)
+
+
+#amines_important_sex_diff_class_mutant <- read.csv("./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_amines_class_tx_RF_week_mutant_week10.csv", header = TRUE)
+
+#Take the top 5
+top_5_amines_sex_diff <-c(amines_important_sex_diff_class_wild_type$X[1:5], amines_important_sex_diff_class_mutant$X[1:5])
+
+#fix matching issues
+top_5_amines_sex_diff <-sub("\\.", "-", top_5_amines_sex_diff) 
+top_5_amines_sex_diff <-sub("N.acyl.lysophosphatidylethanolamines", "N-acyl-lysophosphatidylethanolamines", top_5_amines_sex_diff) 
+
+row.names(feces_amines_class_df) <-sub("\\.", "-", row.names(feces_amines_class_df)) 
+
+top_5_amines_sex_diff_df <-  filter(feces_amines_class_df, row.names(feces_amines_class_df) %in% top_5_amines_sex_diff)
+
+row.names(top_5_amines_sex_diff_df)
+```
+
+### Graph all weeks:
+```{r}
+top_5_amines_sex_diff_df_t <- data.frame(t(top_5_amines_sex_diff_df[, 1:74]))
+top_5_amines_sex_diff_df_t$Sex <- feces_map_metabolites$Sex
+top_5_amines_sex_diff_df_t$Genotype <- feces_map_metabolites$Genotype 
+top_5_amines_sex_diff_df_t$Group <- factor(feces_map_metabolites$Group, levels = c("Female_Mutant", "Male_Mutant", "Female_Wild_Type", "Male_Wild_Type"))
+top_5_amines_sex_diff_df_t$Week <- factor(feces_map_metabolites$Week, levels = c("3", "10"))
+
+# Week 10 only:
+top_5_amines_sex_diff_df_t_week10 <- top_5_amines_sex_diff_df_t[top_5_amines_sex_diff_df_t$Week=="10",]
+
+```
+
+
+
+```{r}
+for (col_name in colnames(top_5_amines_sex_diff_df_t_week10[1:10])) { 
+  # Create ggplot object
+  p <- ggplot(data = top_5_amines_sex_diff_df_t, aes(x = Group, y = .data[[col_name]], color = Group)) +
+    geom_boxplot() +
+    geom_point() + 
+    scale_color_manual(values = group_color_list) +
+    theme_classic() +
+    theme(text = element_text(size = 15)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) 
+    labs(y = paste("Peak Height of", col_name))
+    filepathA = paste("./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/amines_", col_name)
+  # Save the graph with ggsave
+  ggsave(filename = paste(filepathA, ".png"), plot = p, width = 5, height = 6)
+}
+
+#ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/p_feces_amines_RF_sex_diff_absabund_week_Acylcarnitines.png',width=10, height=6, plot = p_feces_amines_RF_sex_diff_absabund_week_Acylcarnitines)
+```
+
+
+
+
+## Lipids
+
+```{r}
+lipids_important_sex_diff_class <- read.csv("./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/important_lipids_class_tx_RF_week_wild_type_week10.csv", header = TRUE)
+
+#Take the top 5
+top_5_lipids_sex_diff <-lipids_important_sex_diff_class$X[1:5]
+
+#fix matching issues
+top_5_lipids_sex_diff <-sub("\\.", "-", top_5_lipids_sex_diff) 
+top_5_lipids_sex_diff <-sub("N.acyl.lysophosphatidylethanolamines", "N-acyl-lysophosphatidylethanolamines", top_5_lipids_sex_diff) 
+
+row.names(feces_lipids_class_df) <-sub("\\.", "-", row.names(feces_lipids_class_df)) 
+
+top_5_lipids_sex_diff_df <-  filter(feces_lipids_class_df, row.names(feces_lipids_class_df) %in% top_5_lipids_sex_diff)
+
+row.names(top_5_lipids_sex_diff_df)
+```
+### Graph all weeks:
+```{r}
+top_5_lipids_sex_diff_df_t <- data.frame(t(top_5_lipids_sex_diff_df[, 1:74]))
+top_5_lipids_sex_diff_df_t$Sex <- feces_map_metabolites$Sex
+top_5_lipids_sex_diff_df_t$Genotype <- feces_map_metabolites$Genotype 
+top_5_lipids_sex_diff_df_t$Group <- factor(feces_map_metabolites$Group, levels = c("Female_Mutant", "Male_Mutant", "Female_Wild_Type", "Male_Wild_Type"))
+top_5_lipids_sex_diff_df_t$Week <- factor(feces_map_metabolites$Week, levels = c("3", "10"))
+
+# Week 10 only:
+top_5_lipids_sex_diff_df_t_week10 <- top_5_lipids_sex_diff_df_t[top_5_lipids_sex_diff_df_t$Week=="10",]
+
+```
+
+
+
+```{r}
+for (col_name in colnames(top_5_lipids_sex_diff_df_t_week10[1:5])) { 
+  # Create ggplot object
+  p <- ggplot(data = top_5_lipids_sex_diff_df_t, aes(x = Group, y = .data[[col_name]], color = Group)) +
+    geom_boxplot() +
+    geom_point() + 
+    scale_color_manual(values = group_color_list) +
+    theme_classic() +
+    theme(text = element_text(size = 15)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) 
+    labs(y = paste("Peak Height of", col_name))
+    filepathA = paste("./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/lipids_", col_name)
+  # Save the graph with ggsave
+  ggsave(filename = paste(filepathA, ".png"), plot = p, width = 5, height = 6)
+}
+
+#ggsave('./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/p_feces_lipids_RF_sex_diff_absabund_week_Acylcarnitines.png',width=10, height=6, plot = p_feces_lipids_RF_sex_diff_absabund_week_Acylcarnitines)
+```
+
+## Stats on these
+### Amines
+normality?
+```{r}
+top_5_amines_sex_diff_df_t_week10_normality<-top_5_amines_sex_diff_df_t_week10[,1:10] %>%
+  group_by(top_5_amines_sex_diff_df_t_week10$Group) %>%
+  summarise_all(.funs = funs(p.value = shapiro.test(.)$p.value))
+top_5_amines_sex_diff_df_t_week10_normality
+```
+Nearly all normal
+
+
+
+```{r}
+top_5_amines_sex_diff_df_t_week10$Sex <- factor(top_5_amines_sex_diff_df_t_week10$Sex)
+
+top_5_amines_sex_diff_df_t_week10_mutant <- top_5_amines_sex_diff_df_t_week10[top_5_amines_sex_diff_df_t_week10$Genotype == 'Mutant',]
+
+top_5_amines_sex_diff_df_t_week10_wild_type <- top_5_amines_sex_diff_df_t_week10[top_5_amines_sex_diff_df_t_week10$Genotype == 'Wild_Type',]
+
+# Amines wild_type
+top_5_amines_sex_diff_df_t_week10_wild_type_t_test_results <- apply(top_5_amines_sex_diff_df_t_week10_wild_type[, 1:10], 2, function(col) {
+  t.test(col ~ top_5_amines_sex_diff_df_t_week10_wild_type$Sex)$p.value
+})
+
+# Amines Mutant
+top_5_amines_sex_diff_df_t_week10_mutant_t_test_results <- apply(top_5_amines_sex_diff_df_t_week10_mutant[, 1:10], 2, function(col) {
+  t.test(col ~ top_5_amines_sex_diff_df_t_week10_mutant$Sex)$p.value
+})
+
+
+top_5_amines_sex_diff_df_t_week10_t_test_results <- data.frame(cbind (top_5_amines_sex_diff_df_t_week10_wild_type_t_test_results, top_5_amines_sex_diff_df_t_week10_mutant_t_test_results))
+
+colnames(top_5_amines_sex_diff_df_t_week10_t_test_results) <- c("Wild_Type", "Mutant")
+
+top_5_amines_sex_diff_df_t_week10_wild_type_fdr <- p.adjust(top_5_amines_sex_diff_df_t_week10_t_test_results$Wild_Type, method = "fdr")
+
+top_5_amines_sex_diff_df_t_week10_mutant_fdr <- p.adjust(top_5_amines_sex_diff_df_t_week10_t_test_results$Mutant, method = "fdr")
+
+top_5_amines_sex_diff_df_t_week10_t_test_fdr <- data.frame(cbind(top_5_amines_sex_diff_df_t_week10_wild_type_fdr, top_5_amines_sex_diff_df_t_week10_mutant_fdr))
+
+colnames(top_5_amines_sex_diff_df_t_week10_t_test_fdr) <- c("Wild_Type_FDR", "Mutant_FDR")
+
+top_5_amines_sex_diff_df_t_week10_t_test_results_andFDR <- data.frame(cbind(top_5_amines_sex_diff_df_t_week10_t_test_results, top_5_amines_sex_diff_df_t_week10_t_test_fdr))
+
+write.csv(file = "./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/top_amines_sex_diff_week_10_peak_heights.csv", top_5_amines_sex_diff_df_t_week10_t_test_results_andFDR)
+```
+
+
+
+
+### lipids
+normality?
+```{r}
+top_5_lipids_sex_diff_df_t_week10_normality<-top_5_lipids_sex_diff_df_t_week10[,1:5] %>%
+  group_by(top_5_lipids_sex_diff_df_t_week10$Group) %>%
+  summarise_all(.funs = funs(p.value = shapiro.test(.)$p.value))
+top_5_lipids_sex_diff_df_t_week10_normality
+```
+
+
+
+```{r}
+top_5_lipids_sex_diff_df_t_week10$Sex <- factor(top_5_lipids_sex_diff_df_t_week10$Sex)
+
+top_5_lipids_sex_diff_df_t_week10_mutant <- top_5_lipids_sex_diff_df_t_week10[top_5_lipids_sex_diff_df_t_week10$Genotype == 'Mutant',]
+
+top_5_lipids_sex_diff_df_t_week10_wild_type <- top_5_lipids_sex_diff_df_t_week10[top_5_lipids_sex_diff_df_t_week10$Genotype == 'Wild_Type',]
+
+# lipids wild_type
+top_5_lipids_sex_diff_df_t_week10_wild_type_t_test_results <- apply(top_5_lipids_sex_diff_df_t_week10_wild_type[, 1:5], 2, function(col) {
+  t.test(col ~ top_5_lipids_sex_diff_df_t_week10_wild_type$Sex)$p.value
+})
+
+# lipids Mutant
+top_5_lipids_sex_diff_df_t_week10_mutant_t_test_results <- apply(top_5_lipids_sex_diff_df_t_week10_mutant[, 1:5], 2, function(col) {
+  t.test(col ~ top_5_lipids_sex_diff_df_t_week10_mutant$Sex)$p.value
+})
+
+
+top_5_lipids_sex_diff_df_t_week10_t_test_results <- data.frame(cbind (top_5_lipids_sex_diff_df_t_week10_wild_type_t_test_results, top_5_lipids_sex_diff_df_t_week10_mutant_t_test_results))
+
+colnames(top_5_lipids_sex_diff_df_t_week10_t_test_results) <- c("Wild_Type", "Mutant")
+
+top_5_lipids_sex_diff_df_t_week10_wild_type_fdr <- p.adjust(top_5_lipids_sex_diff_df_t_week10_t_test_results$Wild_Type, method = "fdr")
+
+top_5_lipids_sex_diff_df_t_week10_mutant_fdr <- p.adjust(top_5_lipids_sex_diff_df_t_week10_t_test_results$Mutant, method = "fdr")
+
+top_5_lipids_sex_diff_df_t_week10_t_test_fdr <- data.frame(cbind(top_5_lipids_sex_diff_df_t_week10_wild_type_fdr, top_5_lipids_sex_diff_df_t_week10_mutant_fdr))
+
+colnames(top_5_lipids_sex_diff_df_t_week10_t_test_fdr) <- c("Wild_Type_FDR", "Mutant_FDR")
+
+top_5_lipids_sex_diff_df_t_week10_t_test_results_andFDR <- data.frame(cbind(top_5_lipids_sex_diff_df_t_week10_t_test_results, top_5_lipids_sex_diff_df_t_week10_t_test_fdr))
+
+write.csv(file = "./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/top_lipids_sex_diff_week_10_peak_heights.csv", top_5_lipids_sex_diff_df_t_week10_t_test_results_andFDR)
+```
+
+
+
+
+
+# Differential Abundance- Coda4microbiome 16S genus level
+## 3.1.1 split nontransformed data into sections (because the package does log ratios itself)
+
+```{r}
+#Split by group
+feces_SVs_mutant <-  filter(feces_SVs %>% select(any_of(feces_mutant_cols_list))) 
+dim(feces_SVs_mutant )
+```
+
+
+
+## 16S Mut and wild type differences week 3 to 10
+## 3.1.1 split nontransformed data into sections (because the package does log ratios itself)
+
+```{r}
+#Split by group
+feces_genus_mutant <-  filter(feces_genus %>% select(any_of(feces_mutant_cols_list))) 
+dim(feces_mutant_cols_list )
+feces_genus_wild_type <-  filter(feces_genus %>% select(any_of(feces_mutant_cols_list))) 
+dim(feces_wild_type_cols_list )
+```
+
+## 3.1.2 Balances for week differences feces genus
+0.0 Do all groups together and graph balances by group?
+#### 1. mutant
+```{r}
+feces_genus_mutant_vector_week <- feces_map[feces_map$Genotype=="Mutant",]$Week
+
+feces_genus_mutant_t <- data.frame(t(feces_genus_mutant))
+
+set.seed(123)
+coda_glmnet_feces_genus_mutant<-coda_glmnet(x=feces_genus_mutant_t, y=feces_genus_mutant_vector_week,
+lambda = "lambda.1se",
+nvar = NULL,
+alpha = 0.9,
+nfolds = 10,
+showPlots = TRUE,
+coef_threshold = 0)
+
+coda_glmnet_feces_genus_mutant$`apparent Rsq`
+coda_glmnet_feces_genus_mutant$`mean cv-MSE`
+coda_glmnet_feces_genus_mutant$`sd cv-MSE`
+```
+
+
+Make data frame with the genera and coefficients
+```{r}
+coda_balance_coeff_feces_genus_mutant <- data.frame(cbind(coda_glmnet_feces_genus_mutant$`log-contrast coefficients`, coda_glmnet_feces_genus_mutant$taxa.name))
+
+rownames(coda_balance_coeff_feces_genus_mutant) <- coda_glmnet_feces_genus_mutant$taxa.name
+
+colnames(coda_balance_coeff_feces_genus_mutant) <- c("Coefficient_full", "Genus")
+
+coda_balance_coeff_feces_genus_mutant$Coefficient_full <- as.numeric(coda_balance_coeff_feces_genus_mutant$Coefficient_full)
+
+coda_balance_coeff_feces_genus_mutant$Coefficient <-as.numeric( format(round(coda_balance_coeff_feces_genus_mutant$Coefficient_full, 2), nsmall = 2))
+
+coda_balance_coeff_feces_genus_mutant$PosNeg <- with(coda_balance_coeff_feces_genus_mutant, ifelse(Coefficient > 0, "Positive", "Negative"))
+
+coda_balance_coeff_feces_genus_mutant$Group <- with(coda_balance_coeff_feces_genus_mutant, ifelse(PosNeg == "Positive", "Older", "Younger"))
+
+#Save
+write.csv(coda_balance_coeff_feces_genus_mutant,file = "./results/feces_analysis/16S/balances/feces_mutant_balance_genus_and_coefficients.csv" )
+
+#Make data frame with the samples, balance predictions, and variables
+coda_balances_feces_genus_mutant_predictions <- data.frame(coda_glmnet_feces_genus_mutant$predictions)
+
+colnames(coda_balances_feces_genus_mutant_predictions) <- c("Balance")
+
+coda_balances_feces_genus_mutant_predictions$Week <- feces_genus_mutant_vector_week
+
+#coda_balances_feces_genus_mutant_predictions$Week <- factor(feces_map[(feces_map$Group=="Female_mutant" ),]$Week)
+
+
+write.csv(coda_balances_feces_genus_mutant_predictions,file = "./results/feces_analysis/16S/balances/feces_mutant_balance_predictions.csv" )
+```
+
+Graph Sample Balances and Genus Coefficients (coeff > 0.099)
+```{r}
+#balance prediction plot
+coda_balances_feces_genus_mutant_predictions$Week <- factor(coda_balances_feces_genus_mutant_predictions$Week, levels = c("3", "6","10"))
+
+p_feces_coda_sample_balances_mutant <- ggplot(data = coda_balances_feces_genus_mutant_predictions, aes(x = Week, y = Balance, color = Week)) +
+    geom_boxplot()+
+    geom_point() +
+    scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  theme_classic() +
+  #facet_grid(~Sample_Type) +
+    theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  #theme(axis.text.y = element_text(angle = 90, hjust = 0.5)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_balances_mutant.png",width=6, height=3, p_feces_coda_sample_balances_mutant)
+
+
+
+#Genus coefficient plot
+#plot only the genera that are at least 5% of the contribution to the ballance
+coda_balance_coeff_feces_genus_mutant_10p <- coda_balance_coeff_feces_genus_mutant[(coda_balance_coeff_feces_genus_mutant$Coefficient>= 0.099 | coda_balance_coeff_feces_genus_mutant$Coefficient<= -0.099),]
+
+
+p_feces_coda_sample_genera_mutant <- ggplot(
+  data = coda_balance_coeff_feces_genus_mutant_10p, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_mutant.png",width=10, height=5, p_feces_coda_sample_genera_mutant)
+
+
+#Graph Genus Coefficients- all genus
+#Genus coefficient plot
+p_feces_coda_sample_genera_mutant_all <- ggplot(
+  data = coda_balance_coeff_feces_genus_mutant, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_mutant_all.png",width=10, height=6, p_feces_coda_sample_genera_mutant_all)
+```
+
+
+#### 1. wild_type
+```{r}
+feces_genus_wild_type_vector_week <- feces_map[feces_map$Genotype=="Wild_Type",]$Week
+
+feces_genus_wild_type_t <- data.frame(t(feces_genus_wild_type))
+```
+```{r}
+set.seed(123)
+coda_glmnet_feces_genus_wild_type<-coda_glmnet(x=feces_genus_wild_type_t, y=feces_genus_wild_type_vector_week,
+lambda = "lambda.1se",
+nvar = NULL,
+alpha = 0.9,
+nfolds = 10,
+showPlots = TRUE,
+coef_threshold = 0)
+```
+
+```{r}
+#Accuracy measure
+coda_glmnet_feces_genus_wild_type$`apparent Rsq`
+coda_glmnet_feces_genus_wild_type$`mean cv-MSE`
+coda_glmnet_feces_genus_wild_type$`sd cv-MSE`
+```
+
+
+Make data frame with the genera and coefficients
+```{r}
+coda_balance_coeff_feces_genus_wild_type <- data.frame(cbind(coda_glmnet_feces_genus_wild_type$`log-contrast coefficients`, coda_glmnet_feces_genus_wild_type$taxa.name))
+
+rownames(coda_balance_coeff_feces_genus_wild_type) <- coda_glmnet_feces_genus_wild_type$taxa.name
+
+colnames(coda_balance_coeff_feces_genus_wild_type) <- c("Coefficient_full", "Genus")
+
+coda_balance_coeff_feces_genus_wild_type$Coefficient_full <- as.numeric(coda_balance_coeff_feces_genus_wild_type$Coefficient_full)
+
+coda_balance_coeff_feces_genus_wild_type$Coefficient <-as.numeric( format(round(coda_balance_coeff_feces_genus_wild_type$Coefficient_full, 2), nsmall = 2))
+
+coda_balance_coeff_feces_genus_wild_type$PosNeg <- with(coda_balance_coeff_feces_genus_wild_type, ifelse(Coefficient > 0, "Positive", "Negative"))
+
+coda_balance_coeff_feces_genus_wild_type$Group <- with(coda_balance_coeff_feces_genus_wild_type, ifelse(PosNeg == "Positive", "Older", "Younger"))
+
+#Save
+write.csv(coda_balance_coeff_feces_genus_wild_type,file = "./results/feces_analysis/16S/balances/feces_wild_type_balance_genus_and_coefficients.csv" )
+
+#Make data frame with the samples, balance predictions, and variables
+coda_balances_feces_genus_wild_type_predictions <- data.frame(coda_glmnet_feces_genus_wild_type$predictions)
+
+colnames(coda_balances_feces_genus_wild_type_predictions) <- c("Balance")
+
+coda_balances_feces_genus_wild_type_predictions$Week <- feces_genus_wild_type_vector_week
+
+#coda_balances_feces_genus_wild_type_predictions$Week <- factor(feces_map[(feces_map$Group=="Female_wild_type" ),]$Week)
+
+
+write.csv(coda_balances_feces_genus_wild_type_predictions,file = "./results/feces_analysis/16S/balances/feces_wild_type_balance_predictions.csv" )
+```
+
+Graph Sample Balances and Genus Coefficients (coeff > 0.099)
+```{r}
+
+
+#balance prediction plot
+coda_balances_feces_genus_wild_type_predictions$Week <- factor(coda_balances_feces_genus_wild_type_predictions$Week, levels = c("3", "6","10"))
+
+p_feces_coda_sample_balances_wild_type <- ggplot(data = coda_balances_feces_genus_wild_type_predictions, aes(x = Week, y = Balance, color = Week)) +
+    geom_boxplot()+
+    geom_point() +
+    scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  theme_classic() +
+  #facet_grid(~Sample_Type) +
+    theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  #theme(axis.text.y = element_text(angle = 90, hjust = 0.5)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_balances_wild_type.png",width=6, height=3, p_feces_coda_sample_balances_wild_type)
+
+
+
+#Genus coefficient plot
+#plot only the genera that are at least 5% of the contribution to the ballance
+coda_balance_coeff_feces_genus_wild_type_10p <- coda_balance_coeff_feces_genus_wild_type[(coda_balance_coeff_feces_genus_wild_type$Coefficient>= 0.099 | coda_balance_coeff_feces_genus_wild_type$Coefficient<= -0.099),]
+
+
+p_feces_coda_sample_genera_wild_type <- ggplot(
+  data = coda_balance_coeff_feces_genus_wild_type_10p, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_wild_type.png",width=10, height=5, p_feces_coda_sample_genera_wild_type)
+
+
+#Graph Genus Coefficients- all genus
+#Genus coefficient plot
+p_feces_coda_sample_genera_wild_type_all <- ggplot(
+  data = coda_balance_coeff_feces_genus_wild_type, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_wild_type_all.png",width=10, height=6, p_feces_coda_sample_genera_wild_type_all)
+```
+
+## Balances for genotype differences each group
+#### 1. week10
+```{r}
+feces_genus_week10_vector_week <- feces_map_week10$Genotype
+
+feces_genus_week10_t <- data.frame(t(feces_genus_week10))
+```
+```{r}
+set.seed(123)
+coda_glmnet_feces_genus_week10<-coda_glmnet(x=feces_genus_week10_t, y=feces_genus_week10_vector_week,
+lambda = "lambda.1se",
+nvar = NULL,
+alpha = 0.9,
+nfolds = 10,
+showPlots = TRUE,
+coef_threshold = 0)
+```
+
+```{r}
+#Accuracy measure
+coda_glmnet_feces_genus_week10$`apparent AUC`
+coda_glmnet_feces_genus_week10$`mean cv-AUC`
+coda_glmnet_feces_genus_week10$`sd cv-AUC`
+```
+
+
+Make data frame with the genera and coefficients
+```{r}
+coda_balance_coeff_feces_genus_week10 <- data.frame(cbind(coda_glmnet_feces_genus_week10$`log-contrast coefficients`, coda_glmnet_feces_genus_week10$taxa.name))
+
+rownames(coda_balance_coeff_feces_genus_week10) <- coda_glmnet_feces_genus_week10$taxa.name
+
+colnames(coda_balance_coeff_feces_genus_week10) <- c("Coefficient_full", "Genus")
+
+coda_balance_coeff_feces_genus_week10$Coefficient_full <- as.numeric(coda_balance_coeff_feces_genus_week10$Coefficient_full)
+
+coda_balance_coeff_feces_genus_week10$Coefficient <-as.numeric( format(round(coda_balance_coeff_feces_genus_week10$Coefficient_full, 2), nsmall = 2))
+
+coda_balance_coeff_feces_genus_week10$PosNeg <- with(coda_balance_coeff_feces_genus_week10, ifelse(Coefficient > 0, "Positive", "Negative"))
+
+coda_balance_coeff_feces_genus_week10$Group <- with(coda_balance_coeff_feces_genus_week10, ifelse(PosNeg == "Positive", "Older", "Younger"))
+
+#Save
+write.csv(coda_balance_coeff_feces_genus_week10,file = "./results/feces_analysis/16S/balances/feces_week10_balance_genus_and_coefficients.csv" )
+
+#Make data frame with the samples, balance predictions, and variables
+coda_balances_feces_genus_week10_predictions <- data.frame(coda_glmnet_feces_genus_week10$predictions)
+
+colnames(coda_balances_feces_genus_week10_predictions) <- c("Balance")
+
+coda_balances_feces_genus_week10_predictions$Genotype <- feces_genus_week10_vector_week
+
+#coda_balances_feces_genus_week10_predictions$Week <- factor(feces_map[(feces_map$Group=="Female_week10" ),]$Week)
+
+
+write.csv(coda_balances_feces_genus_week10_predictions,file = "./results/feces_analysis/16S/balances/feces_week10_balance_predictions.csv" )
+```
+
+Graph Sample Balances and Genus Coefficients (coeff > 0.099)
+```{r}
+coda_balances_feces_genus_week10_predictions_in <- read.csv("./results/feces_analysis/16S/balances/feces_week10_balance_predictions.csv")
+
+coda_balance_coeff_feces_genus_week10_in <-read.csv("./results/feces_analysis/16S/balances/feces_week10_balance_genus_and_coefficients.csv")
+
+#balance prediction plot
+coda_balances_feces_genus_week10_predictions_in$Genotype <- factor(coda_balances_feces_genus_week10_predictions_in$Genotype)
+
+p_feces_coda_sample_balances_week10 <- ggplot(data = coda_balances_feces_genus_week10_predictions_in, 
+                                              aes(x = Genotype, y = Balance, color = Genotype)) +
+    geom_boxplot()+
+    geom_point() +
+    scale_color_manual(values = c("#477B38", "#C075D8")) +
+  scale_fill_manual(values = c("#477B38", "#C075D8")) +
+  theme_classic() +
+  #facet_grid(~Sample_Type) +
+    theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  #theme(axis.text.y = element_text(angle = 90, hjust = 0.5)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_balances_week102.png",width=8, height=3, p_feces_coda_sample_balances_week10)
+
+
+
+#Genus coefficient plot
+#plot only the genera that are at least 5% of the contribution to the ballance
+coda_balance_coeff_feces_genus_week10_10p <- coda_balance_coeff_feces_genus_week10_in[(coda_balance_coeff_feces_genus_week10_in$Coefficient>= 0.099 | coda_balance_coeff_feces_genus_week10_in$Coefficient<= -0.099),]
+
+
+p_feces_coda_sample_genera_week10 <- ggplot(
+  data = coda_balance_coeff_feces_genus_week10_10p, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#C075D8", "#477B38")) +
+  scale_fill_manual(values = c("#C075D8","#477B38")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_week102.png",width=10, height=5, p_feces_coda_sample_genera_week10)
+
+
+#Graph Genus Coefficients- all genus
+#Genus coefficient plot
+p_feces_coda_sample_genera_week10_all <- ggplot(
+  data = coda_balance_coeff_feces_genus_week10_in, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#C075D8", "#477B38")) +
+  scale_fill_manual(values = c("#C075D8","#477B38")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_week10_all2.png",width=10, height=8, p_feces_coda_sample_genera_week10_all)
+```
+
+## 16S week differences
+## 3.1.1 split nontransformed data into sections (because the package does log ratios itself)
+
+```{r}
+#Split by group
+feces_genus_mutant_female <-  filter(feces_genus %>% select(any_of(feces_female_mutant_cols_list))) 
+dim(feces_genus_mutant_female )
+
+feces_genus_wild_type_female <-  filter(feces_genus %>% select(any_of(feces_female_wild_type_cols_list))) 
+dim(feces_genus_wild_type_female )
+
+feces_genus_mutant_male <-  filter(feces_genus %>% select(any_of(feces_male_mutant_cols_list))) 
+dim(feces_genus_mutant_male )
+
+feces_genus_wild_type_male <-  filter(feces_genus %>% select(any_of(feces_male_wild_type_cols_list))) 
+dim(feces_genus_wild_type_male )
+```
+
+## 3.1.2 Balances for week differences feces genus
+0.0 Do all groups together and graph balances by group?
+#### 1. Female Mutant
+```{r}
+feces_genus_mutant_female_vector_week <- feces_map[(feces_map$Group=="Female_Mutant" ),]$Week
+
+feces_genus_mutant_female_t <- data.frame(t(feces_genus_mutant_female))
+
+```
+```{r}
+set.seed(123)
+coda_glmnet_feces_genus_mutant_female<-coda_glmnet(x=feces_genus_mutant_female_t, y=feces_genus_mutant_female_vector_week,
+lambda = "lambda.1se",
+nvar = NULL,
+alpha = 0.9,
+nfolds = 10,
+showPlots = TRUE,
+coef_threshold = 0)
+```
+
+```{r}
+#Accuracy measure
+coda_glmnet_feces_genus_mutant_female$`apparent Rsq`
+coda_glmnet_feces_genus_mutant_female$`mean cv-MSE`
+coda_glmnet_feces_genus_mutant_female$`sd cv-MSE`
+```
+
+
+Make data frame with the genera and coefficients
+```{r}
+coda_balance_coeff_feces_genus_mutant_female <- data.frame(cbind(coda_glmnet_feces_genus_mutant_female$`log-contrast coefficients`, coda_glmnet_feces_genus_mutant_female$taxa.name))
+
+rownames(coda_balance_coeff_feces_genus_mutant_female) <- coda_glmnet_feces_genus_mutant_female$taxa.name
+
+colnames(coda_balance_coeff_feces_genus_mutant_female) <- c("Coefficient_full", "Genus")
+
+coda_balance_coeff_feces_genus_mutant_female$Coefficient_full <- as.numeric(coda_balance_coeff_feces_genus_mutant_female$Coefficient_full)
+
+coda_balance_coeff_feces_genus_mutant_female$Coefficient <-as.numeric( format(round(coda_balance_coeff_feces_genus_mutant_female$Coefficient_full, 2), nsmall = 2))
+
+coda_balance_coeff_feces_genus_mutant_female$PosNeg <- with(coda_balance_coeff_feces_genus_mutant_female, ifelse(Coefficient > 0, "Positive", "Negative"))
+
+coda_balance_coeff_feces_genus_mutant_female$Group <- with(coda_balance_coeff_feces_genus_mutant_female, ifelse(PosNeg == "Positive", "Older", "Younger"))
+
+#Save
+write.csv(coda_balance_coeff_feces_genus_mutant_female,file = "./results/feces_analysis/16S/balances/feces_mutant_female_balance_genus_and_coefficients.csv" )
+
+#Make data frame with the samples, balance predictions, and variables
+coda_balances_feces_genus_mutant_female_predictions <- data.frame(coda_glmnet_feces_genus_mutant_female$predictions)
+
+colnames(coda_balances_feces_genus_mutant_female_predictions) <- c("Balance")
+
+coda_balances_feces_genus_mutant_female_predictions$Week <- feces_genus_mutant_female_vector_week
+
+#coda_balances_feces_genus_mutant_female_predictions$Week <- factor(feces_map[(feces_map$Group=="Female_Mutant" ),]$Week)
+
+
+write.csv(coda_balances_feces_genus_mutant_female_predictions,file = "./results/feces_analysis/16S/balances/feces_mutant_female_balance_predictions.csv" )
+```
+
+Graph Sample Balances and Genus Coefficients (coeff > 0.099)
+```{r}
+#balance prediction plot
+coda_balances_feces_genus_mutant_female_predictions$Week <- factor(coda_balances_feces_genus_mutant_female_predictions$Week, levels = c("3", "6","10"))
+
+p_feces_coda_sample_balances_mutant_female <- ggplot(data = coda_balances_feces_genus_mutant_female_predictions, aes(x = Week, y = Balance, color = Week)) +
+    geom_boxplot()+
+    geom_point() +
+    scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  theme_classic() +
+  #facet_grid(~Sample_Type) +
+    theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  #theme(axis.text.y = element_text(angle = 90, hjust = 0.5)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_balances_mutant_female.png",width=6, height=3, p_feces_coda_sample_balances_mutant_female)
+
+
+
+#Genus coefficient plot
+#plot only the genera that are at least 5% of the contribution to the ballance
+coda_balance_coeff_feces_genus_mutant_female_10p <- coda_balance_coeff_feces_genus_mutant_female[(coda_balance_coeff_feces_genus_mutant_female$Coefficient>= 0.099 | coda_balance_coeff_feces_genus_mutant_female$Coefficient<= -0.099),]
+
+
+p_feces_coda_sample_genera_mutant_female <- ggplot(
+  data = coda_balance_coeff_feces_genus_mutant_female_10p, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_mutant_female.png",width=10, height=5, p_feces_coda_sample_genera_mutant_female)
+
+
+#Graph Genus Coefficients- all genus
+#Genus coefficient plot
+p_feces_coda_sample_genera_mutant_female_all <- ggplot(
+  data = coda_balance_coeff_feces_genus_mutant_female, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_mutant_female_all.png",width=10, height=6, p_feces_coda_sample_genera_mutant_female_all)
+```
+
+#### 2. Female Wild-Type
+```{r}
+feces_genus_wild_type_female_vector_week <- feces_map[(feces_map$Group=="Female_Wild_Type" ),]$Week
+
+feces_genus_wild_type_female_t <- data.frame(t(feces_genus_wild_type_female))
+
+
+set.seed(123)
+coda_glmnet_feces_genus_wild_type_female<-coda_glmnet(x=feces_genus_wild_type_female_t, y=feces_genus_wild_type_female_vector_week,
+lambda = "lambda.1se",
+nvar = NULL,
+alpha = 0.9,
+nfolds = 10,
+showPlots = TRUE,
+coef_threshold = 0)
+```
+
+```{r}
+#Accuracy measure
+coda_glmnet_feces_genus_wild_type_female$`apparent Rsq`
+coda_glmnet_feces_genus_wild_type_female$`mean cv-MSE`
+coda_glmnet_feces_genus_wild_type_female$`sd cv-MSE`
+```
+
+
+Make data frame with the genera and coefficients
+```{r}
+coda_balance_coeff_feces_genus_wild_type_female <- data.frame(cbind(coda_glmnet_feces_genus_wild_type_female$`log-contrast coefficients`, coda_glmnet_feces_genus_wild_type_female$taxa.name))
+
+rownames(coda_balance_coeff_feces_genus_wild_type_female) <- coda_glmnet_feces_genus_wild_type_female$taxa.name
+
+colnames(coda_balance_coeff_feces_genus_wild_type_female) <- c("Coefficient_full", "Genus")
+
+coda_balance_coeff_feces_genus_wild_type_female$Coefficient_full <- as.numeric(coda_balance_coeff_feces_genus_wild_type_female$Coefficient_full)
+
+coda_balance_coeff_feces_genus_wild_type_female$Coefficient <-as.numeric( format(round(coda_balance_coeff_feces_genus_wild_type_female$Coefficient_full, 2), nsmall = 2))
+
+coda_balance_coeff_feces_genus_wild_type_female$PosNeg <- with(coda_balance_coeff_feces_genus_wild_type_female, ifelse(Coefficient > 0, "Positive", "Negative"))
+
+coda_balance_coeff_feces_genus_wild_type_female$Group <- with(coda_balance_coeff_feces_genus_wild_type_female, ifelse(PosNeg == "Positive", "Older", "Younger"))
+
+#Save
+write.csv(coda_balance_coeff_feces_genus_wild_type_female,file = "./results/feces_analysis/16S/balances/feces_wild_type_female_balance_genus_and_coefficients.csv" )
+
+#Make data frame with the samples, balance predictions, and variables
+coda_balances_feces_genus_wild_type_female_predictions <- data.frame(coda_glmnet_feces_genus_wild_type_female$predictions)
+
+colnames(coda_balances_feces_genus_wild_type_female_predictions) <- c("Balance")
+
+coda_balances_feces_genus_wild_type_female_predictions$Week <- feces_genus_wild_type_female_vector_week
+
+#coda_balances_feces_genus_wild_type_female_predictions$Week <- factor(feces_map[(feces_map$Group=="Female_wild_type" ),]$Week)
+
+
+write.csv(coda_balances_feces_genus_wild_type_female_predictions,file = "./results/feces_analysis/16S/balances/feces_wild_type_female_balance_predictions.csv" )
+```
+
+Graph Sample Balances and Genus Coefficients (coeff > 0.099)
+```{r}
+#balance prediction plot
+coda_balances_feces_genus_wild_type_female_predictions$Week <- factor(coda_balances_feces_genus_wild_type_female_predictions$Week, levels = c("3", "6", "10"))
+p_feces_coda_sample_balances_wild_type_female <- ggplot(data = coda_balances_feces_genus_wild_type_female_predictions, aes(x = Week, y = Balance, color = Week)) +
+    geom_boxplot()+
+    geom_point() +
+    scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  theme_classic() +
+  #facet_grid(~Sample_Type) +
+    theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  #theme(axis.text.y = element_text(angle = 90, hjust = 0.5)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_balances_wild_type_female.png",width=6, height=3, p_feces_coda_sample_balances_wild_type_female)
+
+
+
+#Genus coefficient plot
+#plot only the genera that are at least 10% of the contribution to the ballance
+coda_balance_coeff_feces_genus_wild_type_female_10p <- coda_balance_coeff_feces_genus_wild_type_female[(coda_balance_coeff_feces_genus_wild_type_female$Coefficient>= 0.099 | coda_balance_coeff_feces_genus_wild_type_female$Coefficient<= -0.099),]
+
+
+p_feces_coda_sample_genera_wild_type_female <- ggplot(
+  data = coda_balance_coeff_feces_genus_wild_type_female_10p, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_wild_type_female.png",width=10, height=5, p_feces_coda_sample_genera_wild_type_female)
+
+
+#Graph Genus Coefficients- all genus
+#Genus coefficient plot
+p_feces_coda_sample_genera_wild_type_female_all <- ggplot(
+  data = coda_balance_coeff_feces_genus_wild_type_female, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_wild_type_female_all.png",width=10, height=6, p_feces_coda_sample_genera_wild_type_female_all)
+```
+
+#### 3. Male mutant
+```{r}
+feces_genus_mutant_male_vector_week <- feces_map[(feces_map$Group=="Male_Mutant" ),]$Week
+
+feces_genus_mutant_male_t <- data.frame(t(feces_genus_mutant_male))
+
+
+set.seed(123)
+coda_glmnet_feces_genus_mutant_male<-coda_glmnet(x=feces_genus_mutant_male_t, y=feces_genus_mutant_male_vector_week,
+lambda = "lambda.1se",
+nvar = NULL,
+alpha = 0.9,
+nfolds = 10,
+showPlots = TRUE,
+coef_threshold = 0)
+```
+
+```{r}
+#Accuracy measure
+coda_glmnet_feces_genus_mutant_male$`apparent Rsq`
+coda_glmnet_feces_genus_mutant_male$`mean cv-MSE`
+coda_glmnet_feces_genus_mutant_male$`sd cv-MSE`
+```
+
+
+Make data frame with the genera and coefficients
+```{r}
+coda_balance_coeff_feces_genus_mutant_male <- data.frame(cbind(coda_glmnet_feces_genus_mutant_male$`log-contrast coefficients`, coda_glmnet_feces_genus_mutant_male$taxa.name))
+
+rownames(coda_balance_coeff_feces_genus_mutant_male) <- coda_glmnet_feces_genus_mutant_male$taxa.name
+
+colnames(coda_balance_coeff_feces_genus_mutant_male) <- c("Coefficient_full", "Genus")
+
+coda_balance_coeff_feces_genus_mutant_male$Coefficient_full <- as.numeric(coda_balance_coeff_feces_genus_mutant_male$Coefficient_full)
+
+coda_balance_coeff_feces_genus_mutant_male$Coefficient <-as.numeric( format(round(coda_balance_coeff_feces_genus_mutant_male$Coefficient_full, 2), nsmall = 2))
+
+coda_balance_coeff_feces_genus_mutant_male$PosNeg <- with(coda_balance_coeff_feces_genus_mutant_male, ifelse(Coefficient > 0, "Positive", "Negative"))
+
+coda_balance_coeff_feces_genus_mutant_male$Group <- with(coda_balance_coeff_feces_genus_mutant_male, ifelse(PosNeg == "Positive", "Older", "Younger"))
+
+#Save
+write.csv(coda_balance_coeff_feces_genus_mutant_male,file = "./results/feces_analysis/16S/balances/feces_mutant_male_balance_genus_and_coefficients.csv" )
+
+#Make data frame with the samples, balance predictions, and variables
+coda_balances_feces_genus_mutant_male_predictions <- data.frame(coda_glmnet_feces_genus_mutant_male$predictions)
+
+colnames(coda_balances_feces_genus_mutant_male_predictions) <- c("Balance")
+
+coda_balances_feces_genus_mutant_male_predictions$Week <- feces_genus_mutant_male_vector_week
+
+#coda_balances_feces_genus_mutant_male_predictions$Week <- factor(feces_map[(feces_map$Group=="male_mutant" ),]$Week)
+
+
+write.csv(coda_balances_feces_genus_mutant_male_predictions,file = "./results/feces_analysis/16S/balances/feces_mutant_male_balance_predictions.csv" )
+```
+
+Graph Sample Balances and Genus Coefficients (coeff > 0.099)
+```{r}
+#balance prediction plot
+coda_balances_feces_genus_mutant_male_predictions$Week <- factor(coda_balances_feces_genus_mutant_male_predictions$Week, levels = c("3", "6", "10"))
+
+p_feces_coda_sample_balances_mutant_male <- ggplot(data = coda_balances_feces_genus_mutant_male_predictions, aes(x = Week, y = Balance, color = Week)) +
+    geom_boxplot()+
+    geom_point() +
+    scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  theme_classic() +
+  #facet_grid(~Sample_Type) +
+    theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  #theme(axis.text.y = element_text(angle = 90, hjust = 0.5)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_balances_mutant_male.png",width=6, height=3, p_feces_coda_sample_balances_mutant_male)
+
+
+
+#Genus coefficient plot
+#plot only the genera that are at least 10% of the contribution to the ballance
+coda_balance_coeff_feces_genus_mutant_male_10p <- coda_balance_coeff_feces_genus_mutant_male[(coda_balance_coeff_feces_genus_mutant_male$Coefficient>= 0.099 | coda_balance_coeff_feces_genus_mutant_male$Coefficient<= -0.099),]
+
+
+p_feces_coda_sample_genera_mutant_male <- ggplot(
+  data = coda_balance_coeff_feces_genus_mutant_male_10p, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_mutant_male.png",width=10, height=5, p_feces_coda_sample_genera_mutant_male)
+
+
+#Graph Genus Coefficients- all genus
+#Genus coefficient plot
+p_feces_coda_sample_genera_mutant_male_all <- ggplot(
+  data = coda_balance_coeff_feces_genus_mutant_male, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_mutant_male_all.png",width=10, height=6, p_feces_coda_sample_genera_mutant_male_all)
+```
+
+#### 4. male Wild-Type
+```{r}
+feces_genus_wild_type_male_vector_week <- feces_map[(feces_map$Group=="Male_Wild_Type" ),]$Week
+
+feces_genus_wild_type_male_t <- data.frame(t(feces_genus_wild_type_male))
+
+
+set.seed(123)
+coda_glmnet_feces_genus_wild_type_male<-coda_glmnet(x=feces_genus_wild_type_male_t, y=feces_genus_wild_type_male_vector_week,
+lambda = "lambda.1se",
+nvar = NULL,
+alpha = 0.9,
+nfolds = 10,
+showPlots = TRUE,
+coef_threshold = 0)
+```
+
+```{r}
+#Accuracy measure
+coda_glmnet_feces_genus_wild_type_male$`apparent Rsq`
+coda_glmnet_feces_genus_wild_type_male$`mean cv-MSE`
+coda_glmnet_feces_genus_wild_type_male$`sd cv-MSE`
+```
+
+
+Make data frame with the genera and coefficients
+```{r}
+coda_balance_coeff_feces_genus_wild_type_male <- data.frame(cbind(coda_glmnet_feces_genus_wild_type_male$`log-contrast coefficients`, coda_glmnet_feces_genus_wild_type_male$taxa.name))
+
+rownames(coda_balance_coeff_feces_genus_wild_type_male) <- coda_glmnet_feces_genus_wild_type_male$taxa.name
+
+colnames(coda_balance_coeff_feces_genus_wild_type_male) <- c("Coefficient_full", "Genus")
+
+coda_balance_coeff_feces_genus_wild_type_male$Coefficient_full <- as.numeric(coda_balance_coeff_feces_genus_wild_type_male$Coefficient_full)
+
+coda_balance_coeff_feces_genus_wild_type_male$Coefficient <-as.numeric( format(round(coda_balance_coeff_feces_genus_wild_type_male$Coefficient_full, 2), nsmall = 2))
+
+coda_balance_coeff_feces_genus_wild_type_male$PosNeg <- with(coda_balance_coeff_feces_genus_wild_type_male, ifelse(Coefficient > 0, "Positive", "Negative"))
+
+coda_balance_coeff_feces_genus_wild_type_male$Group <- with(coda_balance_coeff_feces_genus_wild_type_male, ifelse(PosNeg == "Positive", "Older", "Younger"))
+
+#Save
+write.csv(coda_balance_coeff_feces_genus_wild_type_male,file = "./results/feces_analysis/16S/balances/feces_wild_type_male_balance_genus_and_coefficients.csv" )
+
+#Make data frame with the samples, balance predictions, and variables
+coda_balances_feces_genus_wild_type_male_predictions <- data.frame(coda_glmnet_feces_genus_wild_type_male$predictions)
+
+colnames(coda_balances_feces_genus_wild_type_male_predictions) <- c("Balance")
+
+coda_balances_feces_genus_wild_type_male_predictions$Week <- feces_genus_wild_type_male_vector_week
+
+#coda_balances_feces_genus_wild_type_male_predictions$Week <- factor(feces_map[(feces_map$Group=="male_wild_type" ),]$Week)
+
+
+write.csv(coda_balances_feces_genus_wild_type_male_predictions,file = "./results/feces_analysis/16S/balances/feces_wild_type_male_balance_predictions.csv" )
+```
+
+Graph Sample Balances and Genus Coefficients (coeff > 0.099)
+```{r}
+#balance prediction plot
+coda_balances_feces_genus_wild_type_male_predictions$Week <- factor(coda_balances_feces_genus_wild_type_male_predictions$Week, levels = c("3", "6", "10"))
+
+p_feces_coda_sample_balances_wild_type_male <- ggplot(data = coda_balances_feces_genus_wild_type_male_predictions, aes(x = Week, y = Balance, color = Week)) +
+    geom_boxplot()+
+    geom_point() +
+    scale_color_manual(values = week_color_list) +
+  scale_fill_manual(values = week_color_list) +
+  theme_classic() +
+  #facet_grid(~Sample_Type) +
+    theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 0.5)) +
+  #theme(axis.text.y = element_text(angle = 90, hjust = 0.5)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_balances_wild_type_male.png",width=6, height=3, p_feces_coda_sample_balances_wild_type_male)
+
+
+
+#Genus coefficient plot
+#plot only the genera that are at least 10% of the contribution to the ballance
+coda_balance_coeff_feces_genus_wild_type_male_10p <- coda_balance_coeff_feces_genus_wild_type_male[(coda_balance_coeff_feces_genus_wild_type_male$Coefficient>= 0.099 | coda_balance_coeff_feces_genus_wild_type_male$Coefficient<= -0.099),]
+
+
+p_feces_coda_sample_genera_wild_type_male <- ggplot(
+  data = coda_balance_coeff_feces_genus_wild_type_male_10p, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_wild_type_male.png",width=10, height=5, p_feces_coda_sample_genera_wild_type_male)
+
+
+#Graph Genus Coefficients- all genus
+#Genus coefficient plot
+p_feces_coda_sample_genera_wild_type_male_all <- ggplot(
+  data = coda_balance_coeff_feces_genus_wild_type_male, 
+  aes(x = reorder(Genus, Coefficient), y = Coefficient)) +
+  geom_bar(stat="identity", width = 0.7, aes(color = Group, fill = Group), show.legend = FALSE) +
+  scale_color_manual(values = c("#800026", "#feb24c")) +
+  scale_fill_manual(values = c("#800026", "#feb24c")) +
+  theme_classic() +
+  xlab(" ") + ylab("Coefficient") +
+  theme(text = element_text(size = 20))  +
+  theme(plot.title = element_text(size=16)) +
+  coord_flip() 
+
+
+ggsave("./results/feces_analysis/16S/balances/feces_coda_sample_genera_coeffieints_wild_type_male_all.png",width=10, height=6, p_feces_coda_sample_genera_wild_type_male_all)
+```
+
+
+## 3.1.4 Make AUC table for all environments 
+```{r}
+coda_glmnet_feces_genus_mutant_female$`apparent Rsq`
+coda_glmnet_feces_genus_mutant_female$`mean cv-MSE`
+coda_glmnet_feces_genus_mutant_female$`sd cv-MSE`
+
+coda_glmnet_feces_genus_wild_type_female$`apparent Rsq`
+coda_glmnet_feces_genus_wild_type_female$`mean cv-MSE`
+coda_glmnet_feces_genus_wild_type_female$`sd cv-MSE`
+
+coda_glmnet_feces_genus_mutant_male$`apparent Rsq`
+coda_glmnet_feces_genus_mutant_male$`mean cv-MSE`
+coda_glmnet_feces_genus_mutant_male$`sd cv-MSE`
+
+coda_glmnet_feces_genus_wild_type_male$`apparent Rsq`
+coda_glmnet_feces_genus_wild_type_male$`mean cv-MSE`
+coda_glmnet_feces_genus_wild_type_male$`sd cv-MSE`
+```
+
+
+```{r}
+coda_glmnet_week_differences_AUC <- c(
+  coda_glmnet_feces_genus_mutant_female$`apparent Rsq`,
+  coda_glmnet_feces_genus_mutant_male$`apparent Rsq`,
+  coda_glmnet_feces_genus_wild_type_female$`apparent Rsq`,
+  coda_glmnet_feces_genus_wild_type_male$`apparent Rsq`) 
+coda_glmnet_week_differences_AUC
+
+coda_glmnet_week_differences_AUC_names <- c("mutant_female", "mutant_male", "wild_type_female", "wild_type_male")
+
+coda_glmnet_week_differences_AUC_table <- cbind(coda_glmnet_week_differences_AUC_names, coda_glmnet_week_differences_AUC)
+
+write.csv(coda_glmnet_week_differences_AUC_table, file = "./results/feces_analysis/16S/balances/coda_glmnet_week_differences_AUC_table.csv")
+                                     
+```
+
+
+
