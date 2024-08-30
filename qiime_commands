@@ -1,0 +1,140 @@
+# qiime2-2022.8
+
+#import data into QIIME2
+qiime tools import \
+  --type MultiplexedSingleEndBarcodeInSequence \
+  --input-path sequences \
+  --output-path multiplexed_sequences.qza
+
+qiime cutadapt demux-single \
+  --p-cores 8 \
+  --i-seqs multiplexed_sequences.qza \
+  --m-barcodes-file metadata.txt \
+  --m-barcodes-column Barcode \
+  --p-error-rate 0 \
+  --o-per-sample-sequences demultiplexed_sequences.qza \
+  --o-untrimmed-sequences untrimmed.qza \
+  --verbose
+
+
+#visualize the quality data
+qiime demux summarize \
+  --i-data demultiplexed_sequences.qza \
+  --o-visualization visualizations/demultiplexed_sequences.qzv
+
+mkdir dada2
+
+#make ASVs using dada2. cutoff of 240 based on the demux quality plot
+qiime dada2 denoise-single \
+  --i-demultiplexed-seqs demultiplexed_sequences.qza \
+  --p-n-threads 12 \
+  --p-trim-left 0 \
+  --p-trunc-len 240 \
+  --o-representative-sequences dada2/rep-seqs-dada2.qza \
+  --o-table dada2/table-dada2.qza \
+  --o-denoising-stats dada2/stats-dada2.qza \
+  --verbose
+
+
+
+
+#assign taxonomy 
+qiime feature-classifier classify-sklearn \
+  --i-classifier /Users/lsisk/Documents/grad_school/dissertation_project/hpg_analysis/qiime_resources/silva-138-99-515-806-nb-classifier.qza \
+  --i-reads dada2/rep-seqs-dada2.qza \
+  --p-n-jobs -2 \
+  --o-classification taxonomy.qza \
+  --verbose
+
+
+ qiime metadata tabulate \
+   --m-input-file taxonomy.qza \
+   --o-visualization visualizations/taxonomy.qzv
+
+#next need to Collapse taxonomic assignment with feature table
+#regarding p levels, genus is 6 and species is 7
+qiime taxa collapse \
+  --i-table dada2/table-dada2.qza \
+  --i-taxonomy taxonomy.qza \
+  --p-level 6 \
+  --o-collapsed-table taxtable_genus/genus_table-dada2.qza 
+
+
+qiime taxa collapse \
+  --i-table dada2/table-dada2.qza \
+  --i-taxonomy taxonomy.qza \
+  --p-level 7 \
+  --o-collapsed-table taxtable_species/species_table-dada2.qza 
+
+
+qiime taxa collapse \
+--i-table dada2/table-dada2.qza \
+--i-taxonomy taxonomy.qza \
+--p-level 5 \
+--o-collapsed-table taxtable_family/family_table-dada2.qza 
+
+
+#export qiime taxonomy table to biom table to txt
+qiime tools export \
+  --input-path taxtable_species/species_table-dada2.qza \
+  --output-path biom_tables_species
+
+biom convert -i biom_tables_species/feature-table.biom -o biom_tables_species/PT_table.from_biom.txt --to-tsv 
+
+cat biom_tables_species/PT_table.from_biom.txt
+
+
+qiime tools export \
+  --input-path taxtable_genus/genus_table-dada2.qza \
+  --output-path biom_tables_genus
+
+biom convert -i biom_tables_genus/feature-table.biom -o biom_tables_genus/PT_table.from_biom.txt --to-tsv 
+
+cat biom_tables_genus/PT_table.from_biom.txt
+
+
+qiime tools export \
+  --input-path taxtable_family/family_table-dada2.qza \
+  --output-path biom_tables_family
+
+biom convert -i biom_tables_family/feature-table.biom -o biom_tables_family/familyPT_table.from_biom.txt --to-tsv 
+
+#to view
+cat biom_tables_family/familyPT_table.from_biom.txt
+
+
+#Find sampling depth
+qiime feature-table summarize \
+  --i-table dada2/table-dada2.qza \
+  --o-visualization visualizations/sampling-depth-table.qzv \
+  --m-sample-metadata-file metadata.txt
+#feces use 5000
+
+
+mkdir phylogeny
+
+#get rooted tree
+qiime phylogeny align-to-tree-mafft-fasttree \
+  --p-n-threads 14 \
+  --i-sequences dada2/rep-seqs-dada2.qza \
+  --o-alignment phylogeny/aligned-rep-seqs.qza \
+  --o-masked-alignment phylogeny/masked-aligned-rep-seqs.qza \
+  --o-tree phylogeny/unrooted-tree.qza \
+  --o-rooted-tree phylogeny/rooted-tree.qza
+
+#figure out what samples to exclude (based on seqs/sample)
+qiime diversity alpha-rarefaction \
+--i-table dada2/table-dada2.qza \
+--i-phylogeny phylogeny/rooted-tree.qza \
+--p-max-depth 5000 \
+--m-metadata-file metadata.txt \
+--o-visualization visualizations/alpha-rarefaction.qzv
+
+
+
+
+
+
+
+
+
