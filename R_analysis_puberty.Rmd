@@ -31,6 +31,12 @@ library(svglite)
 library(rstatix)
 library(reshape2)
 ```
+# set working directory
+```{r}
+setwd("/Users/lsisk/iCloud_Drive/Documents/Documents_Laura_MacBook/grad_school/dissertation_project/hpg_mice_info/omics_analysis/HPG_puberty_paper/data_upload_for_github")
+```
+
+
 Colors:
 Order Female Mut, Female WT, Male Mut, Male WT
 current = "#332288","#E066A6", "#E6A316","#256769"
@@ -40,7 +46,8 @@ Cohort Current = "#CC79A7","#0072B2"
 # Colors
 ```{r}
 group_color_list <- c(Female_Mutant = "#332288", Male_Mutant = "#E6A316", 
-                      Female_Wild_Type = "#E066A6", Male_Wild_Type = "#256769")
+                      Female_Wild_Type = "#E066A6", 
+                      Male_Wild_Type = "#256769")
 sample_type_color_list <- c(Lumen = "#E69F00", Mucosa = "#009E73")
 cohort_color_list <- c(A = "#CC79A7", B = "#0072B2")
 week_color_list <- c(`3` = "#feb24c", `6` = "#fc4e2a", `10` = "#800026")
@@ -204,16 +211,6 @@ dim(feces_amines_class)
 row.names(feces_amines_class) <- feces_amines_class$Class
 feces_amines_class_df <- feces_amines_class[,2:75]
 
-
-feces_primary_class <- feces_primary_class %>% group_by(Class) %>% 
-  summarise(across(everything(), sum),
-            .groups = 'drop')  %>%
-  as.data.frame()
-dim(feces_primary_class)
-
-row.names(feces_primary_class) <- feces_primary_class$Class
-feces_primary_class_df <- feces_primary_class[,2:75]
-
 ```
 
 ### Zero replace and clr
@@ -230,12 +227,6 @@ feces_amines_zerorep[feces_amines_zerorep == 0] <- 0.001
 
 feces_amines_tx<- data.frame(t(clr(t(feces_amines_zerorep))))
 
-#primary
-feces_primary_zerorep <- feces_primary
-feces_primary_zerorep[feces_primary_zerorep == 0] <- 0.001
-
-feces_primary_tx<- data.frame(t(clr(t(feces_primary_zerorep))))
-
 ```
 
 classes
@@ -251,11 +242,6 @@ feces_amines_class_zerorep[feces_amines_class_zerorep == 0] <- 0.001
 
 feces_amines_class_tx<- data.frame(t(clr(t(feces_amines_class_zerorep))))
 
-
-feces_primary_class_zerorep <- feces_primary_class_df
-feces_primary_class_zerorep[feces_primary_class_zerorep == 0] <- 0.001
-
-feces_primary_class_tx<- data.frame(t(clr(t(feces_primary_class_zerorep))))
 
 ```
 
@@ -334,11 +320,9 @@ dim(orthologs)
 ```{r}
 head(genes)
 head(orthologs)
-
-
 ```
 
-
+Clean up
 ```{r}
 row.names(genes) <- genes$`Unnamed..0`
 genes_untx <- genes[,3:76]
@@ -390,17 +374,17 @@ meta_binned_species_zerorep[meta_binned_species_zerorep == 0] <- 0.001
 meta_binned_species_tx<- data.frame(t(clr(t(meta_binned_species_zerorep))))
 dim(meta_binned_species_tx)
 
-meta_binned_genus_zerorep <- feces_meta_binned_genus
-meta_binned_genus_zerorep[meta_binned_genus_zerorep == 0] <- 0.001
-meta_binned_genus_tx<- data.frame(t(clr(t(meta_binned_genus_zerorep))))
-dim(meta_binned_genus_tx)
+#meta_binned_genus_zerorep <- feces_meta_binned_genus
+#meta_binned_genus_zerorep[meta_binned_genus_zerorep == 0] <- 0.001
+#meta_binned_genus_tx<- data.frame(t(clr(t(meta_binned_genus_zerorep))))
+#dim(meta_binned_genus_tx)
 
-meta_binned_family_zerorep <- feces_meta_binned_family
-meta_binned_family_zerorep[meta_binned_family_zerorep == 0] <- 0.001
-meta_binned_family_tx<- data.frame(t(clr(t(meta_binned_family_zerorep))))
-dim(meta_binned_family_tx)
+#meta_binned_family_zerorep <- feces_meta_binned_family
+#meta_binned_family_zerorep[meta_binned_family_zerorep == 0] <- 0.001
+#meta_binned_family_tx<- data.frame(t(clr(t(meta_binned_family_zerorep))))
+#dim(meta_binned_family_tx)
 ```
-Write metagenomics clr data to csv
+Write metagenomics clr data to csv for use in networks
 ```{r}
 #write.csv(meta_binned_species_tx,  "data/binned_species_read_counts_GTDBTk_BLAST_clr.csv")
 ```
@@ -490,11 +474,13 @@ feces_map_metabolites<- feces_map[feces_map$Cohort=="B" & !feces_map$Week=="6",]
 
 dim(feces_map_metabolites)
 
+feces_map_metabolites$Group <- factor(feces_map_metabolites$Group, levels = c("Female_Mutant", "Male_Mutant", "Female_Wild_Type", "Male_Wild_Type"))
+
 ```
 
 
 
-# Network stat plots
+# 1 Network stat plots
 
 ```{r}
 net_stats_female_mutant_week3 <- read.csv("data/week3_female_mutant_stats.csv", header = TRUE, )
@@ -639,7 +625,7 @@ ggsave('./results/feces_analysis/metagenomics/networks_species/p_network_stats_B
 
 
 
-# Beta Diversity
+# 2 Beta Diversity
 ## 16S
 ### 2.1 Taxa Barplots
 ```{r}
@@ -877,6 +863,7 @@ feces_family_10_colmeans$Family <- rownames(feces_family_10_colmeans)
 colnames(feces_family_10_colmeans) <- c("Feces_Abundance", "Family")
 ```
 
+
 Now do LMEs for intestine_top_10_family_abundances
 want columns as families, rows as samples
 ```{r}
@@ -902,6 +889,7 @@ names(feces_family_model_list) <- feces_top_10_family_names
 feces_family_model_anova_list <- as.list(1:num_feces_top_10_family)
 names(feces_family_model_anova_list) <- feces_top_10_family_names
 
+
 # loop over names
 for(i in feces_top_10_family_names){ 
   # create temporary data matrix and model formula
@@ -915,6 +903,8 @@ for(i in feces_top_10_family_names){
 capture.output(feces_family_model_anova_list, file="./results/feces_analysis/16S/taxa_barplots/family_abundance_stats/lme_feces_top_10_family_anova.csv")
 
 capture.output(feces_family_model_list, file="./results/feces_analysis/16S/taxa_barplots/family_abundance_stats/lme_feces_top_10_family_models.csv")
+
+
 ```
 
 
@@ -929,6 +919,54 @@ p_values_feces_top_10_family_anova_table_fdr <- t(data.frame(apply(p_values_fece
 
 write.csv(p_values_feces_top_10_family_anova_table_fdr, file="./results/feces_analysis/16S/taxa_barplots/family_abundance_stats/lme_feces_top_10_family_anova_p_value_table_FDR.csv")
 ```
+
+#### Effect sizes
+```{r}
+
+#unname(cohens_d(Prevotellaceae ~ Week, data =  feces_family_top_10_all_samples)$effsize)
+
+
+effect_bactfamily_sex_list <- as.list(1:num_feces_top_10_family)
+names(effect_bactfamily_sex_list) <- feces_top_10_family_names
+
+# loop over names
+for(i in feces_top_10_family_names){ 
+  tmp_formula_family_effect <- as.formula( paste( 
+    i, "~",paste(c("Sex"))))
+  effect_bactfamily_sex_list[[i]] <- unname(cohens_d(tmp_formula_family_effect, data =  feces_family_top_10_all_samples)$effsize)
+}
+
+
+effect_bactfamily_Genotype_list <- as.list(1:num_feces_top_10_family)
+names(effect_bactfamily_Genotype_list) <- feces_top_10_family_names
+
+# loop over names
+for(i in feces_top_10_family_names){ 
+  tmp_formula_family_effect <- as.formula( paste( 
+    i, "~",paste(c("Genotype"))))
+  effect_bactfamily_Genotype_list[[i]] <- unname(cohens_d(tmp_formula_family_effect, data =  feces_family_top_10_all_samples)$effsize)
+}
+
+
+effect_bactfamily_Week_list <- as.list(1:num_feces_top_10_family)
+names(effect_bactfamily_Week_list) <- feces_top_10_family_names
+
+# loop over names
+for(i in feces_top_10_family_names){ 
+  tmp_formula_family_effect <- as.formula( paste( 
+    i, "~",paste(c("Week"))))
+  effect_bactfamily_Week_list[[i]] <- unname(cohens_d(tmp_formula_family_effect, data =  feces_family_top_10_all_samples)$effsize)
+}
+
+effect_bactfamily_sex_genotype_df <- data.frame(cbind(unlist(effect_bactfamily_sex_list), unlist(effect_bactfamily_Genotype_list)))
+
+colnames(effect_bactfamily_sex_genotype_df) <- c("Sex Effect", "Genotype Effect")
+
+write.csv(effect_bactfamily_sex_genotype_df, file = "./results/family_effect_sizes.csv")
+```
+
+
+
 
 ### 2.3 16S clr-aitchison (Euclidean distance)
 #### 2.3.1. Zero replace the SV tables and clr
@@ -1073,7 +1111,7 @@ ggsave('./results/feces_analysis/16S/NMDS/aitchison/all_together/NMDS_feces_SVs_
 ### Genes Mixed Effect PERMANOVA
 
 ```{r}
-genes_aitchison_dist_c45<-vegdist(as.matrix(t(genes_tx)) , method='euclidean')
+genes_aitchison_dist_c45 <-vegdist(as.matrix(t(genes_tx)) , method='euclidean')
 
 orthologs_aitchison_dist_c45<-vegdist(as.matrix(t(orthologs_tx)) , method='euclidean')
 
@@ -1085,6 +1123,106 @@ orthologs_c45_mixed_permanova <- with(feces_map_metabolites, adonis2(orthologs_a
 
 capture.output(orthologs_c45_mixed_permanova, file = "./results/feces_analysis/genes/permanova/orthologs_c45_mixed_permanova.csv")
 ```
+
+
+### Genes and orthologs Beta Dispersion NEW SECTION
+Weeks combined- Keep
+```{r}
+# this was done in permanova 
+# genes_aitchison_dist_c45<-vegdist(as.matrix(t(genes_tx)) , method='euclidean')
+
+genes_aitchison_dist_betadisp <- betadisper(
+  d = genes_aitchison_dist_c45, 
+  group = feces_map_metabolites$Group_Week, 
+  type = 'centroid')
+                                                   
+genes_aitchison_dist_betadisp_data <- data.frame(genes_aitchison_dist_betadisp$distances) 
+
+colnames(genes_aitchison_dist_betadisp_data) <- "Distance"
+genes_aitchison_dist_betadisp_data <- cbind(genes_aitchison_dist_betadisp_data, feces_map_metabolites)
+
+p_betadisp_feces_genes_week<- ggplot(
+  data = genes_aitchison_dist_betadisp_data, 
+  aes(x = Group, y = Distance, color = Group)) + 
+  geom_boxplot() +
+  geom_jitter(width = 0.3) + 
+  geom_line(alpha = 0.5, aes(group = Mouse)) + 
+  scale_color_manual(values = group_color_list) +
+  facet_grid(~Week) +
+  theme_NMDS()  +
+  #ylim(1000, 3500) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+p_betadisp_feces_genes_week
+
+ggsave('./results/p_betadisp_feces_genes_week.png',width=8, height=4, plot = p_betadisp_feces_genes_week) 
+
+genes_aitchison_dist_betadisp_data_ttest <- genes_aitchison_dist_betadisp_data %>%
+  group_by(Week, Sex) %>%
+  summarise(average = mean(Distance), isnorm = shapiro.test(Distance)$p.value, gendifp = t.test(Distance~Genotype)$p.value)
+
+write.csv(file = "./results/genes_aitchison_dist_betadisp_data_ttest.csv", genes_aitchison_dist_betadisp_data_ttest)
+
+```
+
+
+
+```{r}
+# this was done in permanova 
+# orthologs_aitchison_dist_c45<-vegdist(as.matrix(t(orthologs_tx)) , method='euclidean')
+
+orthologs_aitchison_dist_betadisp <- betadisper(
+  d = orthologs_aitchison_dist_c45, 
+  group = feces_map_metabolites$Group_Week, 
+  type = 'centroid')
+                                                   
+orthologs_aitchison_dist_betadisp_data <- data.frame(orthologs_aitchison_dist_betadisp$distances) 
+
+colnames(orthologs_aitchison_dist_betadisp_data) <- "Distance"
+orthologs_aitchison_dist_betadisp_data <- cbind(orthologs_aitchison_dist_betadisp_data, feces_map_metabolites)
+
+p_betadisp_feces_orthologs_week<- ggplot(
+  data = orthologs_aitchison_dist_betadisp_data, 
+  aes(x = Group, y = Distance, color = Group)) + 
+  geom_boxplot() +
+  #ylim(1000, 3500) +
+  geom_jitter(width = 0.3) + 
+  scale_color_manual(values = group_color_list) +
+  facet_grid(~Week) +
+  theme_NMDS() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+ggsave('./results/p_betadisp_feces_orthologs_week.png',width=8, height=4, plot = p_betadisp_feces_orthologs_week) 
+
+
+#with lines
+
+orthologs_aitchison_dist_betadisp_data$Week_Sex <- paste0(orthologs_aitchison_dist_betadisp_data$Week, orthologs_aitchison_dist_betadisp_data$Sex)
+
+orthologs_aitchison_dist_betadisp_data$Week_Sex <- factor(orthologs_aitchison_dist_betadisp_data$Week_Sex , levels = c("3Female", "10Female", "3Male", "10Male"))
+
+#dont use too messy
+p_betadisp_orthologs_week_group_lines<- ggplot(
+  data = orthologs_aitchison_dist_betadisp_data, 
+  aes(x = Week_Sex, y = Distance, color = Group)) + 
+  geom_boxplot() +
+  geom_point() + 
+  geom_line(alpha = 0.5, aes(group = Mouse)) + 
+  scale_color_manual(values = group_color_list) +
+  facet_grid(~Genotype) +
+  theme_NMDS()  +
+  theme(axis.title.x=element_blank()) # ,
+        #axis.text.x=c("3", "3", "10", "10"))#,
+        #axis.ticks.x=element_blank())
+p_betadisp_orthologs_week_group_lines
+ggsave('./results/p_betadisp_orthologs_week_group_lines.png',width=8, height=5, plot = p_betadisp_orthologs_week_group_lines) 
+```
+
+
 ### Genes NMDS
 Genes
 ```{r}
@@ -1189,6 +1327,120 @@ ggsave('./results/feces_analysis/genes/NMDS/NMDS_orthologs_group_by_week_sex.png
 ```
 
 
+# Genes- differential functions
+Sum counts by module and then clr
+```{r}
+gene_read_counts_and_metadata[is.na(gene_read_counts_and_metadata)] <- 0
+#module
+gene_read_counts <- gene_read_counts_and_metadata[,1:74]
+gene_kegg_module <- gene_read_counts_and_metadata$KEGG_Module
+gene_read_counts_and_kegg_module <- cbind(gene_read_counts, gene_kegg_module)
+
+kegg_module_read_counts <- gene_read_counts_and_kegg_module %>% group_by(gene_kegg_module) %>% 
+  summarise(across(everything(), sum)) %>%
+  as.data.frame()
+
+dim(kegg_module_read_counts)
+```
+
+Select just the count data 
+```{r}
+row.names(kegg_module_read_counts) <-kegg_module_read_counts$gene_kegg_module
+head(kegg_module_read_counts[,2:75])
+kegg_module_untx <- kegg_module_read_counts[3:960,2:75]
+kegg_module_untx[1:10, 1:5]
+
+#clr
+kegg_module_zerorep <- kegg_module_untx
+kegg_module_zerorep[kegg_module_zerorep == 0] <- 0.001
+kegg_module_tx<- data.frame(t(clr(t(kegg_module_zerorep))))
+dim(kegg_module_tx)
+
+kegg_module_tx[1:10, 1:5]
+```
+
+Test whether significant lipid related modules are significantly different
+```{r}
+#phosphatidylethanolamine modules
+#kegg_module_tx_phospha <- kegg_module_tx[grep("M00092|M00093", rownames(kegg_module_tx)), ]
+
+# FA modules
+#kegg_module_tx_FA<- kegg_module_tx[grep("M00082|M00083|M00085|M00415|M00873|M00874|RM02001|RM02002|RM02101|RM02102", rownames(kegg_module_tx)), ]
+
+# combine
+#kegg_module_tx_siglipids <- rbind(kegg_module_tx_phospha, kegg_module_tx_FA)
+
+siglipid_modules <- c("M00092", "M00093", "M00082", "M00083", "M00085", "M00415", "M00873", "M00874", "RM02001", "RM02002", "RM02101", "RM02102")
+
+kegg_module_tx_siglipids <- filter(kegg_module_tx, row.names(kegg_module_tx) %in% siglipid_modules)
+
+
+#transpose
+kegg_module_tx_siglipids_t <- data.frame(t(kegg_module_tx_siglipids))
+
+#change the number of names to how many modules there are
+feces_siglipid_module_names <- colnames(kegg_module_tx_siglipids_t)
+num_feces_siglipid_module <- length(feces_siglipid_module_names)
+
+# create a named list to hold the fitted models
+feces_lipid_module_model_list <- as.list(1:num_feces_siglipid_module)
+names(feces_lipid_module_model_list) <- feces_siglipid_module_names
+
+feces_lipid_module_model_anova_list <- as.list(1:num_feces_siglipid_module)
+names(feces_lipid_module_model_anova_list) <- feces_siglipid_module_names
+
+
+kegg_module_tx_siglipids_meta <- cbind(kegg_module_tx_siglipids_t, feces_map_metabolites)
+
+# loop over names
+for(i in feces_siglipid_module_names){ 
+  # create temporary data matrix and model formula
+  tmp_sig <- kegg_module_tx_siglipids_meta[ , c(i,"Sex","Genotype","Week", "Mouse")]
+  fml_sig <- as.formula( paste( i, "~", paste(c("Sex","Genotype", "Week"), collapse="*") ) )
+  # assign fit to list by name
+  feces_lipid_module_model_list[[i]] <- lme(fml_sig, random = list( ~1|Mouse), method = "ML", data= tmp_sig)
+  feces_lipid_module_model_anova_list[[i]] <- Anova(lme(fml_sig, random = list(~1|Mouse), method = "ML", data= tmp_sig))
+}
+
+capture.output(feces_lipid_module_model_anova_list, file="./results/lme_feces_siglipid_module_anova.csv")
+
+capture.output(feces_lipid_module_model_list, file="./results/lme_feces_siglipid_module_models.csv")
+
+#and FDR correction
+p_values_feces_siglipid_anova_table <- data.frame(lapply(feces_lipid_module_model_anova_list, "[", , "Pr(>Chisq)"))
+rownames(p_values_feces_siglipid_anova_table) <- rownames(feces_lipid_module_model_anova_list$M00092)
+
+#write.csv(p_values_feces_siglipid_anova_table, file="./results/feces_analysis/16S/taxa_barplots/family_abundance_stats/lme_feces_siglipid_anova_p_value_table.csv")
+
+p_values_feces_siglipid_anova_table_fdr <- t(data.frame(apply(p_values_feces_siglipid_anova_table, 1, function(x) p.adjust(x, method = "fdr"))))
+
+write.csv(p_values_feces_siglipid_anova_table_fdr, file="./results/lme_feces_siglipid_anova_p_value_table_FDR.csv")
+
+```
+LEFT OFF HERE
+
+Graph
+```{r}
+for (col_name in colnames(kegg_module_tx_siglipids_t[1:5])) { 
+  # Create ggplot object
+  p <- ggplot(data = kegg_module_tx_siglipids_meta , aes(x = Group, y = .data[[col_name]], color = Group)) +
+    geom_boxplot() +
+    geom_point() + 
+    scale_color_manual(values = group_color_list) +
+    theme_classic() +
+    theme(text = element_text(size = 15)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  +
+    facet_wrap(~Week)
+    labs(y = paste("CLR-transformed Module Gene Counts", col_name))
+    filepathA = paste("./results/siglipid_module_", col_name) 
+    
+  # Save the graph with ggsave
+  ggsave(filename = paste(filepathA, ".png"), plot = p, width = 10, height = 6)
+}
+```
+
+
+
 
 ## Metagenomes- binned beta diversity
 
@@ -1204,6 +1456,10 @@ meta_binned_species_c45_mixed_permanova <- with(feces_map_metabolites, adonis2(m
 capture.output(meta_binned_species_c45_mixed_permanova, file = "./results/feces_analysis/metagenomics/binned/permanova/meta_binned_species_c45_mixed_permanova.csv")
 
 ```
+
+
+
+
 
 ### Metagenomes_binned Species NMDS
 meta_binned_species
@@ -1255,7 +1511,58 @@ p_NMDS_meta_binned_species_group_by_week_sex <- ggplot(data = meta_binned_specie
   theme_NMDS()  
 
 ggsave('./results/feces_analysis/metagenomics/binned/NMDS/NMDS_meta_binned_species_group_by_week_sex.png',width=8, height=5, plot = p_NMDS_meta_binned_species_group_by_week_sex )
+
 ```
+
+
+### Metagenomes_binned Species beta dispersion 
+Weeks combined- Keep
+```{r}
+# this was done in permanova 
+# meta_binned_species_aitchison_dist_c45<-vegdist(as.matrix(t(meta_binned_species_tx)) , method='euclidean')
+
+meta_binned_species_aitchison_dist_betadisp <- betadisper(
+  d = meta_binned_species_aitchison_dist_c45, 
+  group = feces_map_metabolites$Group_Week , 
+  type = 'centroid') 
+                                                   
+meta_binned_species_aitchison_dist_betadisp_data <- data.frame(meta_binned_species_aitchison_dist_betadisp$distances)
+
+colnames(meta_binned_species_aitchison_dist_betadisp_data) <- "Distance"
+meta_binned_species_aitchison_dist_betadisp_data <- cbind(meta_binned_species_aitchison_dist_betadisp_data, feces_map_metabolites)
+
+p_betadisp_feces_meta_species_week<- ggplot(
+  data = meta_binned_species_aitchison_dist_betadisp_data, 
+  aes(x = Group, y = Distance, color = Group)) + 
+  geom_boxplot() +
+  geom_jitter(width = 0.3) + 
+  scale_color_manual(values = group_color_list) +
+  facet_grid(~Week) +
+  theme_NMDS()  +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+ggsave('./results/p_betadisp_feces_meta_species_week.png',width=7, height=4, plot = p_betadisp_feces_meta_species_week) 
+
+# stats- non normal
+#Mutants 
+meta_binned_species_betadisp_week3_mutant_testp <- wilcox.test(Distance~Sex, data = meta_binned_species_aitchison_dist_betadisp_data[meta_binned_species_aitchison_dist_betadisp_data$Week=="3" & meta_binned_species_aitchison_dist_betadisp_data$Genotype == "Mutant",  ])$p.value
+
+meta_binned_species_betadisp_week10_mutant_testp <- wilcox.test(Distance~Sex, data = meta_binned_species_aitchison_dist_betadisp_data[meta_binned_species_aitchison_dist_betadisp_data$Week=="10" & meta_binned_species_aitchison_dist_betadisp_data$Genotype == "Mutant",  ])$p.value
+
+#Wild_Types 
+meta_binned_species_betadisp_week3_Wild_Type_testp <- wilcox.test(Distance~Sex, data = meta_binned_species_aitchison_dist_betadisp_data[meta_binned_species_aitchison_dist_betadisp_data$Week=="3" & meta_binned_species_aitchison_dist_betadisp_data$Genotype == "Wild_Type",  ])$p.value
+
+meta_binned_species_betadisp_week10_Wild_Type_testp <- wilcox.test(Distance~Sex, data = meta_binned_species_aitchison_dist_betadisp_data[meta_binned_species_aitchison_dist_betadisp_data$Week=="10" & meta_binned_species_aitchison_dist_betadisp_data$Genotype == "Wild_Type",  ])$p.value
+
+meta_binned_species_betadisp_testp <- c("week3mutant" = meta_binned_species_betadisp_week3_mutant_testp, "week10mutant" = meta_binned_species_betadisp_week10_mutant_testp, "week3wt" = meta_binned_species_betadisp_week3_Wild_Type_testp, "week10wt" = meta_binned_species_betadisp_week10_Wild_Type_testp)
+
+write.csv(file = "./results/meta_binned_species_betadisp_wilcoxtestp.csv", meta_binned_species_betadisp_testp)
+```
+
+
+
 
 # Metabolites 
 
@@ -1265,7 +1572,7 @@ Make the map and make sure the samples match
 feces_map_metabolites <- feces_map[feces_map$Cohort=="B" & !feces_map$Week=="6",]
 setequal (colnames(feces_lipids), feces_map_metabolites$Mouse_Label_Cols)
 setequal (colnames(feces_amines), feces_map_metabolites$Mouse_Label_Cols)
-setequal (colnames(feces_primary), feces_map_metabolites$Mouse_Label_Cols)
+
 
 ```
 
@@ -1287,6 +1594,8 @@ feces_amines_nontx_euclidean_dist<-vegdist(as.matrix(t(feces_amines)) , method='
 feces_amines_nontx_mixed_permanova <- with(feces_map_metabolites, adonis2(feces_amines_nontx_euclidean_dist ~ Sex*Genotype*Week, data = feces_map_metabolites, permutations = 9999))
 
 capture.output(feces_amines_nontx_mixed_permanova, file = "./results/feces_analysis/metabolites/permanova/euclidean_nontx/feces_amines_nontx_mixed_permanova.csv")
+
+
 
 ```
 
@@ -1478,7 +1787,7 @@ class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF = randomForest(x = 
                           y = factor(train_feces_lipids_class_tx_mutant_week3_for_RF$X60),
                              ntree = 500)
 
-capture.output(class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_lipids_class_tx_mutant_week3.csv')
+#capture.output(class_txifier_feces_week_lipids_class_tx_mutant_week3_for_RF, file = './results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/class_txifier_RF_week_lipids_class_tx_mutant_week3.csv')
 ```
 
 ```{r}
@@ -2446,7 +2755,7 @@ colnames(top_5_amines_sex_diff_df_t_week10_t_test_fdr) <- c("Wild_Type_FDR", "Mu
 
 top_5_amines_sex_diff_df_t_week10_t_test_results_andFDR <- data.frame(cbind(top_5_amines_sex_diff_df_t_week10_t_test_results, top_5_amines_sex_diff_df_t_week10_t_test_fdr))
 
-write.csv(file = "./results/feces_analysis/metabolites/random_forest/sex_diff_class_tx/top_amines_sex_diff_week_10_peak_heights.csv", top_5_amines_sex_diff_df_t_week10_t_test_results_andFDR)
+write.csv(file = "./results/top_amines_sex_diff_week_10_peak_heights.csv", top_5_amines_sex_diff_df_t_week10_t_test_results_andFDR)
 ```
 
 
@@ -2499,7 +2808,106 @@ write.csv(file = "./results/feces_analysis/metabolites/random_forest/sex_diff_cl
 ```
 
 
+###Effect sizes
+```{r}
+#Read in what saved earlier
+feces_lipids_class_tx_t <- data.frame(t(feces_lipids_class_tx))
 
+important_lipids <- feces_lipids_class_tx_t[, c("Acylcarnitines",
+                                                "Fatty_acids", 
+                            "N.acyl.lysophosphatidylethanolamines",
+                            "Phosphatidylethanolamine_alkenyls", 
+                            "Phosphatidylethanolamines")]
+
+feces_amines_class_tx_t <- data.frame(t(feces_amines_class_tx))
+
+important_amines <- feces_amines_class_tx_t[, c("Alkanes",
+                                                "Amino_sugars", 
+                            "Carboxylic_acids",
+                            "Disaccharides", 
+                            "Flavonoids", 
+                            "GABA_derivatives", 
+                            "Histamines", 
+                            "Indoleacetic_acids", 
+                            "Quaternary_ammonium_compounds", 
+                            "Xanthurenates")]
+
+```
+
+
+```{r}
+#calculate effect sizes by sex for for each genotype at week 10
+
+important_lipids$Sex <- feces_map_metabolites_week10$Sex
+important_lipids$Genotype <- feces_map_metabolites_week10$Genotype
+
+important_amines$Sex <- feces_map_metabolites_week10$Sex
+important_amines$Genotype <- feces_map_metabolites_week10$Genotype
+
+# Lipids
+effect_lipids_Wild_Type_list <- as.list(1:5)
+names(effect_lipids_Wild_Type_list) <- colnames(important_lipids)[1:5]
+
+# loop over names
+for(i in colnames(important_lipids)[1:5]){ 
+  tmp_formula_meta_effect <- as.formula( paste( 
+    i, "~",paste(c("Sex"))))
+  effect_lipids_Wild_Type_list[[i]] <- unname(cohens_d(tmp_formula_meta_effect, 
+  data =important_lipids[important_lipids$Genotype=="Wild_Type", ])$effsize)
+}
+
+
+effect_lipids_Mutant_list <- as.list(1:5)
+names(effect_lipids_Mutant_list) <- colnames(important_lipids)[1:5]
+
+# loop over names
+for(i in colnames(important_lipids)[1:5]){ 
+  tmp_formula_meta_effect <- as.formula( paste( 
+    i, "~",paste(c("Sex"))))
+  effect_lipids_Mutant_list[[i]] <- unname(cohens_d(tmp_formula_meta_effect, 
+  data =important_lipids[important_lipids$Genotype=="Mutant", ])$effsize)
+}
+
+
+
+effect_lipids_sex_df <- data.frame(cbind(unlist(effect_lipids_Wild_Type_list ), unlist(effect_lipids_Mutant_list )))
+
+colnames(effect_lipids_sex_df ) <- c("Wild_Type", "Mutant")
+
+write.csv(effect_lipids_sex_df , file = "./results/lipids_sex_effect_sizes.csv")
+
+# Amines
+effect_amines_Wild_Type_list <- as.list(1:10)
+names(effect_amines_Wild_Type_list) <- colnames(important_amines)[1:10]
+
+# loop over names
+for(i in colnames(important_amines)[1:10]){ 
+  tmp_formula_meta_effect <- as.formula( paste( 
+    i, "~",paste(c("Sex"))))
+  effect_amines_Wild_Type_list[[i]] <- unname(cohens_d(tmp_formula_meta_effect, 
+  data =important_amines[important_amines$Genotype=="Wild_Type", ])$effsize)
+}
+
+
+effect_amines_Mutant_list <- as.list(1:10)
+names(effect_amines_Mutant_list) <- colnames(important_amines)[1:10]
+
+# loop over names
+for(i in colnames(important_amines)[1:10]){ 
+  tmp_formula_meta_effect <- as.formula( paste( 
+    i, "~",paste(c("Sex"))))
+  effect_amines_Mutant_list[[i]] <- unname(cohens_d(tmp_formula_meta_effect, 
+  data =important_amines[important_amines$Genotype=="Mutant", ])$effsize)
+}
+
+
+
+effect_amines_sex_df <- data.frame(cbind(unlist(effect_amines_Wild_Type_list ), unlist(effect_amines_Mutant_list )))
+
+colnames(effect_amines_sex_df ) <- c("Wild_Type", "Mutant")
+
+write.csv(effect_amines_sex_df , file = "./results/amines_sex_effect_sizes.csv")
+```
 
 
 # Differential Abundance- Coda4microbiome 16S genus level
